@@ -1,0 +1,51 @@
+{
+    "name": "saucy/saucy",
+    "type": "library",
+    "require": {
+        "php": "^8.2",
+        "eventsauce/eventsauce": "^3.5",
+        "league/construct-finder": "^1.3",
+        "robertbaelde/attribute-finder": "^0.1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "orchestra/testbench": "^8.21"
+    },
+    "autoload": {
+        "psr-4": {
+            "Saucy\\Core\\": "core/src/",
+            "Saucy\\Ids\\": "ids/src/",
+            "Saucy\\Tasks\\": "tasks/src/",
+            "Saucy\\MessageStorage\\": "messageStorage/src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Robertbaelde",
+            "email": "robert_baelde@hotmail.com"
+        }
+    ],
+    "autoload-dev": {
+        "psr-4": {
+            "Workbench\\App\\": "workbench/app/",
+            "Workbench\\Tests\\": "workbench/tests/",
+            "Workbench\\Database\\Factories\\": "workbench/database/factories/",
+            "Workbench\\Database\\Seeders\\": "workbench/database/seeders/",
+            "Saucy\\Tasks\\Tests\\": "tasks/tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "@clear",
+            "@prepare"
+        ],
+        "clear": "@php vendor/bin/testbench package:purge-skeleton --ansi",
+        "prepare": "@php vendor/bin/testbench package:discover --ansi",
+        "build": "@php vendor/bin/testbench workbench:build --ansi",
+        "serve": [
+            "Composer\\Config::disableProcessTimeout",
+            "@build",
+            "@php vendor/bin/testbench serve"
+        ]
+    }
+}
