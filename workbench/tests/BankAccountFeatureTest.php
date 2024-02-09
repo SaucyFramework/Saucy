@@ -7,6 +7,7 @@ use Saucy\Core\Query\QueryBus;
 use Workbench\App\BankAccount\BankAccountId;
 use Workbench\App\BankAccount\Commands\CreditBankAccount;
 use Workbench\App\BankAccount\Query\GetBankAccountBalance;
+use Workbench\App\BankAccount\Query\GetTotalBankBalance;
 
 final class BankAccountFeatureTest extends WithDatabaseTestCase
 {
@@ -21,11 +22,11 @@ final class BankAccountFeatureTest extends WithDatabaseTestCase
         $bankAccountIdB = BankAccountId::generate();
 
         $commandBus->handle(CreditBankAccount::withAmount(100, $bankAccountIdB));
-        $commandBus->handle(CreditBankAccount::withAmount(100, $bankAccountIdB));
+        $commandBus->handle(CreditBankAccount::withAmount(50, $bankAccountIdB));
 
         $queryBus = $this->app->make(QueryBus::class);
-        $balance = $queryBus->query(GetBankAccountBalance::forId($bankAccountId));
-        $this->assertEquals(100, $balance);
-        $this->assertTrue(true);
+        $this->assertEquals(200, $queryBus->query(GetBankAccountBalance::forId($bankAccountId)));
+        $this->assertEquals(150, $queryBus->query(GetBankAccountBalance::forId($bankAccountIdB)));
+        $this->assertEquals(350, $queryBus->query(new GetTotalBankBalance()));
     }
 }

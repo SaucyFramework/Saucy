@@ -2,8 +2,6 @@
 
 namespace Saucy\Core\Command;
 
-use Saucy\Tasks\TaskLocation;
-
 final readonly class CommandTaskMap
 {
     /**

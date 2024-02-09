@@ -2,12 +2,17 @@
 
 namespace Saucy\Core\Subscriptions\MessageConsumption;
 
+use Saucy\Core\Events\Streams\StreamName;
+
 readonly class MessageConsumeContext
 {
     public function __construct(
         public string $eventId,
         public string $subscriptionId,
-        public string $streamName,
+        public string $streamNameType,
+        public string $streamType,
+        public string $streamNameAsString,
+        public StreamName $streamName,
         public string $eventClass,
         public string $eventType,
         public object $event,

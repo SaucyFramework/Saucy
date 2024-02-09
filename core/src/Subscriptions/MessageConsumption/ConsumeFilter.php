@@ -1,8 +1,6 @@
 <?php
 
-namespace Saucy\Core\Subscriptions;
-
-use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
+namespace Saucy\Core\Subscriptions\MessageConsumption;
 
 interface ConsumeFilter
 {

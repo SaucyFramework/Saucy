@@ -21,9 +21,4 @@ interface AllStreamMessageRepository
      * @throws UnableToRetrieveMessages
      */
     public function retrieveAllInStream(StreamName $streamName): Generator;
-//
-//    /**
-//     * @return Generator<int, StreamEvent, void, StreamQ>
-//     */
-    public function paginate(AllStreamQuery $streamQuery): Generator;
 }

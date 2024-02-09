@@ -7,6 +7,8 @@ use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Saucy\Core\Framework\SaucyServiceProvider;
 
+use Workbench\App\Providers\WorkbenchServiceProvider;
+
 use function Orchestra\Testbench\workbench_path;
 
 abstract class WithDatabaseTestCase extends TestCase
@@ -22,13 +24,14 @@ abstract class WithDatabaseTestCase extends TestCase
     protected function defineEnvironment($app)
     {
         $app['config']->set('saucy.directories', [__DIR__ . '/../app']);
+        $app['config']->set('saucy.projection.keep_processing_without_new_messages_before_stop_in_seconds', 0);
         $app['config']->set('database.default', 'testing');
     }
 
     protected function getPackageProviders($app)
     {
         $app['config']->set('saucy.directories', [__DIR__ . '/../app']);
-        return [SaucyServiceProvider::class];
+        return [SaucyServiceProvider::class, WorkbenchServiceProvider::class];
     }
 
     protected function defineDatabaseMigrations()

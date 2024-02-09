@@ -7,4 +7,6 @@ interface StreamName
     public function toString(): string;
 
     public static function fromString(string $string): self;
+
+    public function type(): string;
 }

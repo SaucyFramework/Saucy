@@ -3,7 +3,7 @@
 namespace Saucy\Core\Subscriptions;
 
 use Closure;
-use Saucy\Core\Command\Middleware;
+use Saucy\Core\Subscriptions\MessageConsumption\ConsumeFilter;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 
 final readonly class ConsumePipe

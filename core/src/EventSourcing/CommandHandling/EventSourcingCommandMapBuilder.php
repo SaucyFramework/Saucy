@@ -8,7 +8,6 @@ use Saucy\Core\Command\CommandTask;
 use Saucy\Core\Command\CommandTaskMap;
 use Saucy\Core\EventSourcing\Aggregate;
 use Saucy\Tasks\ClassMethod;
-use Saucy\Tasks\StaticClassMethod;
 use Saucy\Tasks\TaskBuilder;
 
 final readonly class EventSourcingCommandMapBuilder
