@@ -55,7 +55,7 @@ final readonly class SubscriptionRegistryFactory
     private static function buildAllStreamSubscription(ProjectorConfig $projectorConfig, TypeMap $typeMap, Application $application): AllStreamSubscription
     {
         return new AllStreamSubscription(
-            subscriptionId: Str::of($projectorConfig->projectorClass)->snake(),
+            subscriptionId: Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake(),
             streamOptions: new StreamOptions(
                 eventTypes: self::mapEventTypes($typeMap, $projectorConfig),
                 processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'),

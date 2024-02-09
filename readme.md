@@ -5,7 +5,6 @@
 ### Todo: 
 
 - [ ] Add tests & phpstan
-- [ ] SubscriptionRegistryFactory -> subscriptionId: Str::of($projectorConfig->projectorClass)->snake(), change to better name, not tied to class fqn
 - [x] Add Eloquent Projector
 - [ ] Add reactors & process managers
 - [ ] Add middleware to commands and queries (eg, check if user is authorized to execute a command or query)
@@ -22,7 +21,7 @@ Next to that, the event infrastructure is inspired by Eventious (link). Ecotone 
 
 Saucy consists mostly of 3 parts:
 - CommandBus: Auto-wiring CommandBus
-- QueryBys: Auto-wiring QueryBus
+- QueryBus: Auto-wiring QueryBus
 - Projections: Projections that simple register by adding 1 attribute.
 
 ### Command Bus
