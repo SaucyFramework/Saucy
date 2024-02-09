@@ -112,7 +112,6 @@ final class SaucyServiceProvider extends ServiceProvider
         // auto wire stream subscriptions
         $projectorMap = ProjectorMapBuilder::buildForClasses($classes, $typeMap);
 
-
         $this->app->bind(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap)
         ));

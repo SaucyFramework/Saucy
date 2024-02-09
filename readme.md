@@ -6,7 +6,7 @@
 
 - [ ] Add tests & phpstan
 - [ ] SubscriptionRegistryFactory -> subscriptionId: Str::of($projectorConfig->projectorClass)->snake(), change to better name, not tied to class fqn
-- [ ] Add Eloquent Projector
+- [x] Add Eloquent Projector
 - [ ] Add reactors & process managers
 - [ ] Add middleware to commands and queries (eg, check if user is authorized to execute a command or query)
 - [ ] (maybe) add document store
@@ -222,6 +222,30 @@ final class BalanceProjector extends IlluminateDatabaseProjector
     {
         $blueprint->ulid($this->idColumnName())->primary();
         $blueprint->integer('balance');
+    }
+}
+```
+
+Next to illuminate database projectors, we also support Eloquent models as read model. 
+In order to do this, we want to protect the fields we project to be updated by other pieces of code. To do this, add the
+
+`use HasReadOnlyFields;` trait to the model you want to project to. Now we can create our Elqouent projector like this: 
+
+```php
+#[AggregateProjector(BankAccountAggregate::class)]
+final class BankAccountProjector extends EloquentProjector
+{
+    protected static string $model = BankAccountModel::class;
+
+    public function handleAccountCredited(AccountCredited $accountCredited): void
+    {
+        $bankAccount = $this->find();
+        if($bankAccount === null){
+            $this->create(['balance' => $accountCredited->amount]);
+            return;
+        }
+
+        $this->increment('balance', $accountCredited->amount);
     }
 }
 ```

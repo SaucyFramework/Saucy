@@ -24,7 +24,8 @@ abstract class WithDatabaseTestCase extends TestCase
     protected function defineEnvironment($app)
     {
         $app['config']->set('saucy.directories', [__DIR__ . '/../app']);
-        $app['config']->set('saucy.projection.keep_processing_without_new_messages_before_stop_in_seconds', 0);
+        $app['config']->set('saucy.stream_projection.keep_processing_without_new_messages_before_stop_in_seconds', 0);
+        $app['config']->set('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds', 0);
         $app['config']->set('database.default', 'testing');
     }
 
