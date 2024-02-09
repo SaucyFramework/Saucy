@@ -21,6 +21,7 @@ final readonly class TypeMap
         private array $classToTypeMap,
     )
     {
+        $this->typeToClassMap = $this->createConsumerMap();
     }
 
     public static function of(TypeMap ...$typeMap): self
@@ -51,7 +52,6 @@ final readonly class TypeMap
      */
     public function typeToClassName(string $eventType): string
     {
-        $this->typeToClassMap ??= $this->createConsumerMap();
         $className = $this->typeToClassMap[$eventType] ?? null;
 
         if ($className === null) {

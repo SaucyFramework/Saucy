@@ -10,7 +10,7 @@ use ReflectionType;
 use ReflectionUnionType;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 
-final readonly class InflectHandlerMethodsFromType implements HandleMethodInflector
+final class InflectHandlerMethodsFromType implements HandleMethodInflector
 {
     /**
      * @var string[][]

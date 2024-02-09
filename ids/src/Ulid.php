@@ -5,9 +5,10 @@ namespace Saucy\Ids;
 use EventSauce\EventSourcing\AggregateRootId;
 use Symfony\Component\Uid\Ulid as UlidGenerator;
 
+/** @phpstan-consistent-constructor */
 abstract class Ulid implements AggregateRootId
 {
-    public function __construct(private string $id)
+    private function __construct(private string $id)
     {
         if(!UlidGenerator::isValid($id)) {
             throw new \InvalidArgumentException('Invalid ulid');
