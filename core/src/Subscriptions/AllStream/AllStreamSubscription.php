@@ -72,6 +72,9 @@ final readonly class AllStreamSubscription
                 payload: $storedEvent->payloadJson,
             )
         );
+
+        /** @var array<string, mixed> $metaData */
+        $metaData = json_decode($storedEvent->metadataJson, true);
         return new MessageConsumeContext(
             eventId: $storedEvent->eventId,
             subscriptionId: $this->subscriptionId,
@@ -82,7 +85,7 @@ final readonly class AllStreamSubscription
             eventClass: get_class($payload),
             eventType: $storedEvent->eventType,
             event: $payload,
-            metaData: json_decode($storedEvent->metadataJson, true),
+            metaData: $metaData,
             streamPosition: $storedEvent->streamPosition,
             globalPosition: $storedEvent->globalPosition,
         );

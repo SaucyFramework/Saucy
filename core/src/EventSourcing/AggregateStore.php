@@ -75,7 +75,7 @@ final readonly class AggregateStore
 
     /**
      * @param Generator<StreamEvent> $streamEvents
-     * @return Generator<object>
+     * @return Generator<int, object, void, int>
      */
     private function messagesToEvents(Generator $streamEvents): Generator
     {

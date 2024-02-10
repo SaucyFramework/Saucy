@@ -61,9 +61,9 @@ final readonly class SubscriptionRegistryFactory
             subscriptionId: Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake(),
             streamOptions: new StreamOptions(
                 eventTypes: self::mapEventTypes($typeMap, $projectorConfig),
-                processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'),
-                keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'),
-                queue: config('saucy.all_stream_projection.queue'),
+                processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'), // @phpstan-ignore-line
+                keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
+                queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
             ),
             consumePipe: new ConsumePipe(
                 new HandlerFilter(
@@ -79,14 +79,18 @@ final readonly class SubscriptionRegistryFactory
 
     private static function buildStreamSubscription(ProjectorConfig $projectorConfig, TypeMap $typeMap, Application $application): StreamSubscription
     {
+        if($projectorConfig->aggregateType === null){
+            throw new \Exception('Aggregate type is required for aggregate instance projectors');
+        }
+
         return new StreamSubscription(
             subscriptionId: Str::of($projectorConfig->projectorClass)->snake(),
             aggregateType: $projectorConfig->aggregateType,
             streamOptions: new StreamOptions(
                 eventTypes: self::mapEventTypes($typeMap, $projectorConfig),
-                processTimeoutInSeconds: config('saucy.stream_projection.timeout'),
-                keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'),
-                queue: config('saucy.stream_projection.queue'),
+                processTimeoutInSeconds: config('saucy.stream_projection.timeout'), // @phpstan-ignore-line
+                keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
+                queue: config('saucy.stream_projection.queue'), // @phpstan-ignore-line
             ),
             consumePipe: new ConsumePipe(
                 new HandlerFilter(

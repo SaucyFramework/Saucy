@@ -53,7 +53,7 @@ final class SaucyServiceProvider extends ServiceProvider
             __DIR__.'/saucy.php', 'saucy'
         );
 
-        $classes = ConstructFinder::locatedIn(...config('saucy.directories'))->findClassNames();
+        $classes = ConstructFinder::locatedIn(...config('saucy.directories'))->findClassNames(); // @phpstan-ignore-line
 
         // build type map
         $typeMap = TypeMap::of(
