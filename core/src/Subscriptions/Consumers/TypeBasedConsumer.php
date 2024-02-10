@@ -27,7 +27,7 @@ abstract class TypeBasedConsumer implements MessageConsumer, ListsMessagesItHand
     {
         $messages = [];
         /** @var class-string $messageClass */
-        foreach((new InflectHandlerMethodsFromType())->findMethodsToHandleEvent(static::class) as $messageClass => $methods){
+        foreach((new InflectHandlerMethodsFromType())->findMethodsToHandleEvent(static::class) as $messageClass => $methods) {
             $messages[] = $messageClass;
         }
         return array_filter($messages, fn($type) => $type != Connection::class && $type !== MessageConsumeContext::class);

@@ -9,12 +9,10 @@ final readonly class ConstructingPayloadSerializer implements EventSerializer
 {
     public function __construct(
         private TypeMap $typeMap,
-    )
-    {
-    }
+    ) {}
     public function serialize(object $event): SerializationResult
     {
-        if(!$event instanceof SerializablePayload){
+        if(!$event instanceof SerializablePayload) {
             throw new \Exception('Event must be serializable');
         }
 

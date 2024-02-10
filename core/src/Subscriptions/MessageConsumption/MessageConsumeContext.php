@@ -22,7 +22,5 @@ readonly class MessageConsumeContext
         public array $metaData,
         public int $streamPosition,
         public int $globalPosition,
-    )
-    {
-    }
+    ) {}
 }

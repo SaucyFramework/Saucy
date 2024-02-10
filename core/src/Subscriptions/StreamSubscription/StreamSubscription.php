@@ -27,9 +27,7 @@ final readonly class StreamSubscription
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,
         public TypeMap $streamNameTypeMap,
-    )
-    {
-    }
+    ) {}
 
     public function poll(StreamName $streamName): int
     {
@@ -49,13 +47,13 @@ final readonly class StreamSubscription
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
             $messageCount += 1;
             // if batch size reached, commit
-            if($messageCount === $this->streamOptions->commitBatchSize){
+            if($messageCount === $this->streamOptions->commitBatchSize) {
                 $this->checkpointStore->store($checkpoint->withPosition($storedEvent->streamPosition));
                 $lastCommit = $storedEvent->streamPosition;
             }
         }
 
-        if(isset($storedEvent) && $lastCommit !== $storedEvent->streamPosition){
+        if(isset($storedEvent) && $lastCommit !== $storedEvent->streamPosition) {
             $this->checkpointStore->store($checkpoint->withPosition($storedEvent->streamPosition));
         }
 

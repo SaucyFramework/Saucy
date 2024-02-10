@@ -18,26 +18,26 @@ final readonly class QueryHandlerMapBuilder
         $attributes = AttributeFinder::inClasses($classes)->withName(QueryHandler::class)->findAll();
 
         $map = [];
-        foreach ($attributes as $attribute){
-            if($attribute instanceof ClassAttribute){
+        foreach ($attributes as $attribute) {
+            if($attribute instanceof ClassAttribute) {
                 throw new \Exception('Class ' . $attribute->class . ' is annotated with ' . QueryHandler::class . ' but class query handlers are not supported yet');
             }
-            if($attribute instanceof MethodAttribute){
+            if($attribute instanceof MethodAttribute) {
                 $parameters = $attribute->method->getParameters();
-                if(count($parameters) === 0){
+                if(count($parameters) === 0) {
                     throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has no parameters');
                 }
 
                 $queryType = $parameters[0]->getType();
-                if($queryType instanceof \ReflectionUnionType){
+                if($queryType instanceof \ReflectionUnionType) {
                     throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has a union type as first parameter');
                 }
 
-                if($queryType === null){
+                if($queryType === null) {
                     throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has no type for the first parameter');
                 }
 
-                if(!$queryType instanceof \ReflectionNamedType){
+                if(!$queryType instanceof \ReflectionNamedType) {
                     throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has a non-named type for the first parameter');
                 }
 

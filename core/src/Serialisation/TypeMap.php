@@ -5,7 +5,6 @@ namespace Saucy\Core\Serialisation;
 use EventSauce\EventSourcing\UnableToInflectClassName;
 use EventSauce\EventSourcing\UnableToInflectEventType;
 
-
 /**
  * Copied from EventSauce\EventSourcing\ClassNameInflector
  */
@@ -19,8 +18,7 @@ final readonly class TypeMap
      */
     public function __construct(
         private array $classToTypeMap,
-    )
-    {
+    ) {
         $this->typeToClassMap = $this->createConsumerMap();
     }
 
@@ -39,7 +37,7 @@ final readonly class TypeMap
         $type = $this->classToTypeMap[$className] ?? null;
         is_array($type) && $type = $type[0] ?? null;
 
-        if ( ! is_string($type)) {
+        if (! is_string($type)) {
             throw UnableToInflectClassName::mappingIsNotDefined($className);
         }
 

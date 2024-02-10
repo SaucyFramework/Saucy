@@ -11,8 +11,7 @@ final readonly class AllStreamSubscriptionRegistry
 
     public function __construct(
         AllStreamSubscription...$streams
-    )
-    {
+    ) {
         $streamsMap = [];
         foreach ($streams as $stream) {
             $streamsMap[$stream->subscriptionId] = $stream;

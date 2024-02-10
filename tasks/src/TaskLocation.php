@@ -2,6 +2,4 @@
 
 namespace Saucy\Tasks;
 
-interface TaskLocation
-{
-}
+interface TaskLocation {}

@@ -2,7 +2,6 @@
 
 namespace Saucy\MessageStorage\Serialization;
 
-
 interface EventSerializer
 {
     public function serialize(object $event): SerializationResult;

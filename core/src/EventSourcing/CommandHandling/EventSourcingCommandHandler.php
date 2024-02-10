@@ -10,13 +10,11 @@ final readonly class EventSourcingCommandHandler
 {
     public const AGGREGATE_ROOT_CLASS = 'aggregateRootClass';
     public const AGGREGATE_ROOT_ID_PROPERTY = 'aggregateRootIdProperty';
-    const AGGREGATE_METHOD = 'aggregateMethod';
+    public const AGGREGATE_METHOD = 'aggregateMethod';
 
     public function __construct(
         private AggregateStore $eventSourcingRepository
-    )
-    {
-    }
+    ) {}
 
     /**
      * @param object $message

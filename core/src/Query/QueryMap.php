@@ -11,9 +11,7 @@ final readonly class QueryMap
      */
     public function __construct(
         public array $map,
-    )
-    {
-    }
+    ) {}
 
     /**
      * @throws QueryHandlerNotFound

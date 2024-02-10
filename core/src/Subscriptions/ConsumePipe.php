@@ -8,7 +8,6 @@ use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 
 final readonly class ConsumePipe
 {
-
     /** @var Closure(object $command):mixed */
     private Closure $filterChain;
 
@@ -27,10 +26,10 @@ final readonly class ConsumePipe
      */
     private function createExecutionChain(array $filterList): Closure
     {
-        $lastCallable = static fn () => null;
+        $lastCallable = static fn() => null;
 
         while ($filter = array_pop($filterList)) {
-            $lastCallable = static fn (MessageConsumeContext $context) => $filter->handle($context, $lastCallable);
+            $lastCallable = static fn(MessageConsumeContext $context) => $filter->handle($context, $lastCallable);
         }
 
         return $lastCallable;

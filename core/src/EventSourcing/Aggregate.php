@@ -10,7 +10,5 @@ final readonly class Aggregate
     public function __construct(
         public string $aggregateIdClass,
         public ?string $name = null,
-    )
-    {
-    }
+    ) {}
 }

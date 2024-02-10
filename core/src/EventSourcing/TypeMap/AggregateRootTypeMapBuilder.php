@@ -9,9 +9,7 @@ use Saucy\Core\Serialisation\TypeMap;
 
 final readonly class AggregateRootTypeMapBuilder
 {
-    public function __construct(private bool $allowsMissingAggregateName = false)
-    {
-    }
+    public function __construct(private bool $allowsMissingAggregateName = false) {}
 
     public static function make(): self
     {
@@ -31,7 +29,7 @@ final readonly class AggregateRootTypeMapBuilder
             if (!$attribute instanceof Aggregate) {
                 continue;
             }
-            $classMap[$classAttribute->class] = $attribute->name ?? ($this->allowsMissingAggregateName ? $this->getNameFromClass($classAttribute->class) : throw new \Exception('Aggregate name is required for ' . $classAttribute->class ));
+            $classMap[$classAttribute->class] = $attribute->name ?? ($this->allowsMissingAggregateName ? $this->getNameFromClass($classAttribute->class) : throw new \Exception('Aggregate name is required for ' . $classAttribute->class));
         }
         return new TypeMap($classMap);
     }

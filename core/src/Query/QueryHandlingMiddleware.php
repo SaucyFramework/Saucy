@@ -9,9 +9,7 @@ final readonly class QueryHandlingMiddleware implements Middleware
     public function __construct(
         private TaskRunner $taskRunner,
         private QueryMap $queryMap,
-    )
-    {
-    }
+    ) {}
 
     public function run(object $message, callable $next): mixed
     {

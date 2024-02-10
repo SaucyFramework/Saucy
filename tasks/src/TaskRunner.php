@@ -10,9 +10,7 @@ final readonly class TaskRunner
 {
     public function __construct(
         private ContainerInterface $container,
-    )
-    {
-    }
+    ) {}
 
     public function run(TaskLocation $taskLocation): mixed
     {

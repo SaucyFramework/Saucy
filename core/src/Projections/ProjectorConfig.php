@@ -2,7 +2,6 @@
 
 namespace Saucy\Core\Projections;
 
-
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
 
 final readonly class ProjectorConfig
@@ -16,7 +15,5 @@ final readonly class ProjectorConfig
         public array $handlingEventClasses,
         public ProjectorType $projectorType,
         public ?string $aggregateType = null,
-    )
-    {
-    }
+    ) {}
 }

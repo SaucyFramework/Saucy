@@ -9,9 +9,7 @@ final readonly class TaskMapCommandHandler implements Middleware
     public function __construct(
         private CommandTaskMap $commandTaskMap,
         private TaskRunner $taskRunner,
-    )
-    {
-    }
+    ) {}
 
     public function run(object $message, callable $next): void
     {

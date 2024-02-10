@@ -19,20 +19,17 @@ final readonly class CommandBus
         return ($this->middlewareChain)($message);
     }
 
-    public function queue(): void
-    {
-
-    }
+    public function queue(): void {}
 
     /**
      * @param Middleware[] $middlewareList
      */
     private function createExecutionChain(array $middlewareList): Closure
     {
-        $lastCallable = static fn () => null;
+        $lastCallable = static fn() => null;
 
         while ($middleware = array_pop($middlewareList)) {
-            $lastCallable = static fn (object $message) => $middleware->run($message, $lastCallable);
+            $lastCallable = static fn(object $message) => $middleware->run($message, $lastCallable);
         }
 
         return $lastCallable;

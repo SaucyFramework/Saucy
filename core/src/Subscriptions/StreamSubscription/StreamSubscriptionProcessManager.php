@@ -21,15 +21,14 @@ final readonly class StreamSubscriptionProcessManager
         private StreamSubscriptionRegistry $streamSubscriptionRegistry,
         private RunningProcesses $runningProcesses,
         ?DateInterval $defaultProcessTimeout = null,
-    )
-    {
+    ) {
         $this->defaultProcessTimeout = $defaultProcessTimeout ?? new DateInterval('PT5M');
     }
 
     private function startStreamIfNotRunning(StreamSubscription $stream, AggregateStreamName $aggregateStreamName): void
     {
         $streamId = $stream->getId($aggregateStreamName);
-        if($this->runningProcesses->isActive($streamId)){
+        if($this->runningProcesses->isActive($streamId)) {
             return;
         }
 
@@ -40,7 +39,7 @@ final readonly class StreamSubscriptionProcessManager
                 $processId,
                 (new DateTime('now'))->add($stream->streamOptions->processTimeoutInSeconds !== null ? new DateInterval("PT{$stream->streamOptions->processTimeoutInSeconds}S") : $this->defaultProcessTimeout)
             );
-        } catch (StartProcessException $exception){
+        } catch (StartProcessException $exception) {
             // process already running, stop execution
             return;
         }
@@ -54,21 +53,21 @@ final readonly class StreamSubscriptionProcessManager
      */
     public function startProcessesForAggregateInstance(AggregateStreamName $streamName, ?array $eventTypes = null): void
     {
-        if(!$streamName instanceof AggregateStreamName){
+        if(!$streamName instanceof AggregateStreamName) {
             throw new \Exception("For now only Aggregate root scoped Stream projectors are supported");
         }
 
         foreach ($this->streamSubscriptionRegistry->getStreamsForAggregateType($streamName->aggregateRootType) as $stream) {
-            if($eventTypes === null){
+            if($eventTypes === null) {
                 $this->startStreamIfNotRunning($stream, $streamName);
                 continue;
             }
 
-            if($stream->streamOptions->eventTypes === null){
+            if($stream->streamOptions->eventTypes === null) {
                 continue;
             }
 
-            if(count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0){
+            if(count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0) {
                 continue;
             }
             $this->startStreamIfNotRunning($stream, $streamName);

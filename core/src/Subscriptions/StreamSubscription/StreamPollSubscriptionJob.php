@@ -15,7 +15,10 @@ use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 
 final class StreamPollSubscriptionJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+    use SerializesModels;
 
     private int $timestampZeroMessagesHandled;
 
@@ -23,15 +26,12 @@ final class StreamPollSubscriptionJob implements ShouldQueue
         public string $subscriptionId,
         public string $processId,
         public StreamName $streamName,
-    ) {
-
-    }
+    ) {}
 
     public function handle(
         StreamSubscriptionRegistry $subscriptionRegistry,
         RunningProcesses $runningProcesses,
-    ): void
-    {
+    ): void {
         $subscription = $subscriptionRegistry->get($this->subscriptionId);
         $this->runSubscription($subscription, $runningProcesses);
     }
@@ -39,28 +39,27 @@ final class StreamPollSubscriptionJob implements ShouldQueue
     private function runSubscription(StreamSubscription $subscription, RunningProcesses $runningProcesses): void
     {
         $streamId = $subscription->getId($this->streamName);
-        if(!$runningProcesses->isActive($streamId, $this->processId)){
+        if(!$runningProcesses->isActive($streamId, $this->processId)) {
             $runningProcesses->stop($this->processId);
             return;
         }
 
         $messagesHandled = $subscription->poll($this->streamName);
 
-        if($messagesHandled === 0){
+        if($messagesHandled === 0) {
 
-            if(!isset($this->timestampZeroMessagesHandled)){
+            if(!isset($this->timestampZeroMessagesHandled)) {
                 $this->timestampZeroMessagesHandled = time();
             }
 
 
-            if(time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds){
+            if(time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
                 $runningProcesses->stop($this->processId);
                 return;
             }
 
             usleep($subscription->streamOptions->sleepWhenNoNewMessagesBeforeRetryInMicroseconds);
-        }
-        else{
+        } else {
             unset($this->timestampZeroMessagesHandled);
         }
 

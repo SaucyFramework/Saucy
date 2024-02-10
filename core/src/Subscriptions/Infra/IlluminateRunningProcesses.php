@@ -11,9 +11,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
     public function __construct(
         private ConnectionInterface $connection,
         private string $tableName = 'running_processes',
-    )
-    {
-    }
+    ) {}
 
 
     /**
@@ -27,7 +25,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
                 'process_id' => $processId,
                 'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
             ]);
-        } catch (PDOException $e){
+        } catch (PDOException $e) {
             Log::notice("pdo exception: " . $e->getCode());
             throw StartProcessException::cannotGetLockForProcess();
         }
@@ -38,7 +36,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
     {
         return $this->connection->table($this->tableName)
             ->where('subscription_id', $subscriptionId)
-            ->when($processId !== null, fn ($query) => $query->where('process_id', $processId))
+            ->when($processId !== null, fn($query) => $query->where('process_id', $processId))
             ->where('expires_at', '>', now())
             ->exists();
     }

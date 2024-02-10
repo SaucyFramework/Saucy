@@ -9,9 +9,7 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
     public function __construct(
         private ConnectionInterface $connection,
         private string $tableName = 'checkpoint_store',
-    )
-    {
-    }
+    ) {}
 
     /**
      * @inheritDoc
@@ -22,7 +20,7 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
             ->where('stream_identifier', $streamIdentifier)
             ->first();
 
-        if(!$row){
+        if(!$row) {
             CheckpointNotFound::forStream($streamIdentifier);
         }
 

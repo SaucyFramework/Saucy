@@ -2,6 +2,4 @@
 
 namespace Saucy\Core\Events\Streams;
 
-interface AggregateStreamNameInterface extends StreamName
-{
-}
+interface AggregateStreamNameInterface extends StreamName {}

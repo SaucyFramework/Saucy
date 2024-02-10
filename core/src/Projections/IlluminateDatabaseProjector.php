@@ -27,7 +27,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
      */
     protected function upsert(array $data): void
     {
-        if($this->queryBuilder->exists()){
+        if($this->queryBuilder->exists()) {
             $this->update($data);
             return;
         }
@@ -62,7 +62,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
     protected function find(): ?array
     {
         $row = $this->queryBuilder->clone()->first();
-        if($row === null){
+        if($row === null) {
             return null;
         }
         return get_object_vars($row);
@@ -78,7 +78,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
         return 'projection_' . Str::of(get_class($this))->afterLast('\\')->snake();
     }
 
-    abstract protected  function schema(Blueprint $blueprint): void;
+    abstract protected function schema(Blueprint $blueprint): void;
 
     protected function idColumnName(): string
     {
@@ -87,7 +87,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
 
     protected function scopeAggregate(string|AggregateRootId $aggregateRootId): void
     {
-        if($aggregateRootId instanceof AggregateRootId){
+        if($aggregateRootId instanceof AggregateRootId) {
             $aggregateRootId = $aggregateRootId->toString();
         }
         $this->scopedAggregateRootId = $aggregateRootId;
@@ -97,14 +97,14 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
     public function handle(MessageConsumeContext $context): void
     {
         $this->queryBuilder = $this->connection->table($this->tableName());
-        if(!$context->streamName instanceof AggregateStreamName){
+        if(!$context->streamName instanceof AggregateStreamName) {
             throw new Exception('Can only use this projector with aggregate root streams');
         }
         $this->scopeAggregate($context->streamName->aggregateRootIdAsString());
 
-       $this->migrate();
+        $this->migrate();
 
-       parent::handle($context);
+        parent::handle($context);
     }
 
     protected function migrate(): void
@@ -113,9 +113,9 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
             $this->connection->getSchemaBuilder()->hasTable($this->tableName()) || $this->connection->getSchemaBuilder()->create($this->tableName(), function (Blueprint $blueprint) {
                 $this->schema($blueprint);
             });
-        } catch (\PDOException $e){
+        } catch (\PDOException $e) {
             // race condition, table already exists
-            if($e->getCode() === '42S01'){
+            if($e->getCode() === '42S01') {
                 return;
             }
             throw $e;

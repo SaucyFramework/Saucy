@@ -12,7 +12,8 @@
         "phpunit/phpunit": "^10.5",
         "orchestra/testbench": "^8.21",
         "phpstan/phpstan": "^1.10",
-        "larastan/larastan": "^2.0"
+        "larastan/larastan": "^2.0",
+        "friendsofphp/php-cs-fixer": "^3.49"
     },
     "autoload": {
         "psr-4": {

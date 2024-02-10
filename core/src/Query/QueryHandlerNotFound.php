@@ -2,7 +2,6 @@
 
 namespace Saucy\Core\Query;
 
-
 use Exception;
 
 final class QueryHandlerNotFound extends Exception

@@ -15,7 +15,5 @@ final readonly class CommandTask
         public string $commandClass,
         public TaskLocation $taskLocation,
         public array $metaData = [],
-    )
-    {
-    }
+    ) {}
 }

@@ -12,7 +12,5 @@ final readonly class StreamEvent
         public object $payload,
         public array $metadata,
         public int $position,
-    )
-    {
-    }
+    ) {}
 }

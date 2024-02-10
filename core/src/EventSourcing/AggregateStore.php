@@ -18,9 +18,7 @@ final readonly class AggregateStore
         private AllStreamMessageRepository $messageRepository,
         private StreamNameMapper $streamNameMapper,
         private TypeMap $typeMap,
-    )
-    {
-    }
+    ) {}
 
     /**
      * @param AggregateRoot<AggregateRootId> $aggregateRoot

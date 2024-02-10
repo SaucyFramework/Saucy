@@ -53,7 +53,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
      */
     public function retrieveAllInStream(StreamName $streamName): Generator
     {
-        return $this->mapRowsToEvents( $this->connection->table($this->tableName)
+        return $this->mapRowsToEvents($this->connection->table($this->tableName)
             ->where('stream_name', $streamName->toString())
             ->orderBy('stream_position')
             ->cursor());
@@ -83,16 +83,16 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
     {
         foreach ($rows as $row) {
             yield new StreamEvent(
-                    eventId: $row->message_id, // @phpstan-ignore-line
-                    payload: $this->eventSerializer->deserialize(
-                        new SerializationResult(
-                            eventType: $row->message_type, // @phpstan-ignore-line
-                            payload: $row->payload, // @phpstan-ignore-line
-                        )
-                    ),
-                    metadata: json_decode($row->metadata, true), // @phpstan-ignore-line
-                    position: $row->stream_position, // @phpstan-ignore-line
-                );
+                eventId: $row->message_id, // @phpstan-ignore-line
+                payload: $this->eventSerializer->deserialize(
+                    new SerializationResult(
+                        eventType: $row->message_type, // @phpstan-ignore-line
+                        payload: $row->payload, // @phpstan-ignore-line
+                    )
+                ),
+                metadata: json_decode($row->metadata, true), // @phpstan-ignore-line
+                position: $row->stream_position, // @phpstan-ignore-line
+            );
         }
     }
 

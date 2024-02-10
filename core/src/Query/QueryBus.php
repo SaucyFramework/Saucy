@@ -6,7 +6,6 @@ use Closure;
 
 final readonly class QueryBus
 {
-
     private Closure $middlewareChain;
 
     public function __construct(Middleware ...$middleware)

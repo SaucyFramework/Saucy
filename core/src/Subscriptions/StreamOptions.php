@@ -18,7 +18,5 @@ final readonly class StreamOptions
         public int $keepProcessingWithoutNewMessagesBeforeStopInSeconds = 5,
         public int $sleepWhenNoNewMessagesBeforeRetryInMicroseconds = 500_000, // 0.5 sec default
         public ?string $queue = null,
-    )
-    {
-    }
+    ) {}
 }

@@ -11,8 +11,7 @@ readonly class AggregateStreamName implements AggregateStreamNameInterface
     public function __construct(
         public string $aggregateRootType,
         public string $aggregateRootId,
-    ) {
-    }
+    ) {}
 
     public static function forAggregateWithId(string $aggregateRootType, AggregateRootId $aggregateRootId): AggregateStreamName
     {

@@ -35,22 +35,22 @@ use Saucy\MessageStorage\Serialization\ConstructingPayloadSerializer;
 use Saucy\MessageStorage\StreamReader;
 use Saucy\Tasks\TaskRunner;
 
-
 final class SaucyServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/saucy.php' => config_path('saucy.php'),
+            __DIR__ . '/saucy.php' => config_path('saucy.php'),
         ]);
 
-        $this->loadMigrationsFrom(__DIR__.'/../../../migrations');
+        $this->loadMigrationsFrom(__DIR__ . '/../../../migrations');
     }
 
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/saucy.php', 'saucy'
+            __DIR__ . '/saucy.php',
+            'saucy'
         );
 
         $classes = ConstructFinder::locatedIn(...config('saucy.directories'))->findClassNames(); // @phpstan-ignore-line
@@ -66,13 +66,13 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->instance(TypeMap::class, $typeMap);
 
-        $this->app->bind(RunningProcesses::class, function (Application $application){
+        $this->app->bind(RunningProcesses::class, function (Application $application) {
             return new IlluminateRunningProcesses(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });
 
-        $this->app->bind(CheckpointStore::class, function (Application $application){
+        $this->app->bind(CheckpointStore::class, function (Application $application) {
             return new IlluminateCheckpointStore(
                 $application->make(DatabaseManager::class)->connection(),
             );
@@ -124,7 +124,8 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $commandTaskMap = EventSourcingCommandMapBuilder::buildTaskMapForClasses($classes);
 
-        $this->app->instance(CommandBus::class,
+        $this->app->instance(
+            CommandBus::class,
             new CommandBus(
                 new TaskMapCommandHandler(
                     commandTaskMap: $commandTaskMap,
@@ -133,7 +134,8 @@ final class SaucyServiceProvider extends ServiceProvider
             )
         );
 
-        $this->app->instance(QueryBus::class,
+        $this->app->instance(
+            QueryBus::class,
             new QueryBus(
                 new QueryHandlingMiddleware(
                     new TaskRunner($this->app),

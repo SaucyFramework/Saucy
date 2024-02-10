@@ -8,9 +8,7 @@ final class StubClass
     private string $argumentA;
     private string $argumentB;
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     public function methodWithoutArguments(): void
     {

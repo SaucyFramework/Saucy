@@ -12,9 +12,7 @@ final readonly class HooksMessageStore implements AllStreamMessageRepository, Al
     public function __construct(
         private AllStreamMessageRepository&AllStreamReader $inner,
         private ?AfterPersistHook $afterPersistHook = null,
-    )
-    {
-    }
+    ) {}
 
     public function persist(StreamName $streamName, StreamEvent ...$streamEvents): void
     {

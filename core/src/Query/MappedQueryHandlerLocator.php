@@ -11,9 +11,7 @@ final readonly class MappedQueryHandlerLocator
      */
     public function __construct(
         private array $queryHandlerMap,
-    )
-    {
-    }
+    ) {}
 
     /**
      * @throws QueryHandlerNotFound

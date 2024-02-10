@@ -15,6 +15,5 @@ final readonly class StoredEvent
         public int $streamPosition,
         public int $globalPosition,
         public \DateTimeImmutable $createdAt,
-    ) {
-    }
+    ) {}
 }

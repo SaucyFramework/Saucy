@@ -30,8 +30,8 @@ final readonly class SubscriptionRegistryFactory
     public static function buildForProjectorMap(ProjectorMap $projectorMap, Application $application, TypeMap $typeMap): array
     {
         $streams = [];
-        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig){
-            $streams[] = match ($projectorConfig->projectorType){
+        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
+            $streams[] = match ($projectorConfig->projectorType) {
                 ProjectorType::AllStream => self::buildAllStreamSubscription($projectorConfig, $typeMap, $application),
                 ProjectorType::AggregateInstance => self::buildStreamSubscription($projectorConfig, $typeMap, $application),
             };
@@ -48,7 +48,7 @@ final readonly class SubscriptionRegistryFactory
             array_map(function (string $className) use ($typeMap) {
                 try {
                     return $typeMap->classNameToType($className);
-                } catch (UnableToInflectClassName $e){
+                } catch (UnableToInflectClassName $e) {
                     return false;
                 }
             }, $projectorConfig->handlingEventClasses)
@@ -79,7 +79,7 @@ final readonly class SubscriptionRegistryFactory
 
     private static function buildStreamSubscription(ProjectorConfig $projectorConfig, TypeMap $typeMap, Application $application): StreamSubscription
     {
-        if($projectorConfig->aggregateType === null){
+        if($projectorConfig->aggregateType === null) {
             throw new \Exception('Aggregate type is required for aggregate instance projectors');
         }
 
@@ -113,8 +113,8 @@ final readonly class SubscriptionRegistryFactory
     public static function buildAllStreamSubscriptionForProjectorMap(ProjectorMap $projectorMap, Application $application, TypeMap $typeMap): array
     {
         $streams = [];
-        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig){
-            if($projectorConfig->projectorType === ProjectorType::AllStream){
+        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
+            if($projectorConfig->projectorType === ProjectorType::AllStream) {
                 $streams[] = self::buildAllStreamSubscription($projectorConfig, $typeMap, $application);
             }
         }
@@ -130,8 +130,8 @@ final readonly class SubscriptionRegistryFactory
     public static function buildStreamSubscriptionForProjectorMap(ProjectorMap $projectorMap, Application $application, TypeMap $typeMap): array
     {
         $streams = [];
-        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig){
-            if($projectorConfig->projectorType === ProjectorType::AggregateInstance){
+        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
+            if($projectorConfig->projectorType === ProjectorType::AggregateInstance) {
                 $streams[] = self::buildStreamSubscription($projectorConfig, $typeMap, $application);
             }
         }

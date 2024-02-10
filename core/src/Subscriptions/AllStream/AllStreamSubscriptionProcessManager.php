@@ -18,8 +18,7 @@ final readonly class AllStreamSubscriptionProcessManager
         private AllStreamSubscriptionRegistry $allStreamSubscriptionRegistry,
         private RunningProcesses $runningProcesses,
         ?DateInterval $defaultProcessTimeout = null,
-    )
-    {
+    ) {
         $this->defaultProcessTimeout = $defaultProcessTimeout ?? new DateInterval('PT5M');
     }
 
@@ -44,10 +43,10 @@ final readonly class AllStreamSubscriptionProcessManager
     {
         // start all streams as processes
         foreach ($this->allStreamSubscriptionRegistry->streams as $stream) {
-            if($stream->streamOptions->eventTypes === null){
+            if($stream->streamOptions->eventTypes === null) {
                 continue;
             }
-            if(count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0){
+            if(count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0) {
                 continue;
             }
             $this->startStreamIfNotRunning($stream);
@@ -56,7 +55,7 @@ final readonly class AllStreamSubscriptionProcessManager
 
     private function startStreamIfNotRunning(AllStreamSubscription $stream): void
     {
-        if($this->runningProcesses->isActive($stream->subscriptionId)){
+        if($this->runningProcesses->isActive($stream->subscriptionId)) {
             return;
         }
 
@@ -67,7 +66,7 @@ final readonly class AllStreamSubscriptionProcessManager
                 $processId,
                 (new DateTime('now'))->add($stream->streamOptions->processTimeoutInSeconds !== null ? new DateInterval("PT{$stream->streamOptions->processTimeoutInSeconds}S") : $this->defaultProcessTimeout)
             );
-        } catch (StartProcessException $exception){
+        } catch (StartProcessException $exception) {
             // process already running, stop execution
             return;
         }

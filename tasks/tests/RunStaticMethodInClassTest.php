@@ -2,7 +2,6 @@
 
 namespace Saucy\Tasks\Tests;
 
-
 use Illuminate\Container\Container;
 use PHPUnit\Framework\TestCase;
 use Saucy\Tasks\ClassMethod;

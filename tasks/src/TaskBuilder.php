@@ -2,7 +2,6 @@
 
 namespace Saucy\Tasks;
 
-
 use ReflectionMethod;
 
 final readonly class TaskBuilder
@@ -10,7 +9,7 @@ final readonly class TaskBuilder
     public static function fromReflectionMethod(ReflectionMethod $reflectionMethod): TaskLocation
     {
 
-        if($reflectionMethod->isStatic()){
+        if($reflectionMethod->isStatic()) {
             return new StaticClassMethod(
                 className: $reflectionMethod->getDeclaringClass()->getName(),
                 methodName: $reflectionMethod->getName(),

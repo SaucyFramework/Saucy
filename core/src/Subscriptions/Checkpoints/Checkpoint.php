@@ -7,9 +7,7 @@ final readonly class Checkpoint
     public function __construct(
         public string $streamIdentifier,
         public int $position,
-    )
-    {
-    }
+    ) {}
 
     public function withPosition(int $position): self
     {

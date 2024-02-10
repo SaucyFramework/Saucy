@@ -13,7 +13,5 @@ final readonly class PersistedStreamEvent
         public array $metadata,
         public int $position,
         public int $globalPosition,
-    )
-    {
-    }
+    ) {}
 }

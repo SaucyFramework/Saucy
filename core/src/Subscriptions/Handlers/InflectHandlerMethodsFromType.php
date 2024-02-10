@@ -37,7 +37,7 @@ final class InflectHandlerMethodsFromType implements HandleMethodInflector
         $handlers = [];
 
         foreach ($methods as $method) {
-            if ( ! $type = $this->firstParameterType($method)) {
+            if (! $type = $this->firstParameterType($method)) {
                 continue;
             }
 

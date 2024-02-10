@@ -11,8 +11,7 @@ final readonly class CommandTaskMap
 
     public function __construct(
         CommandTask ...$commandTasks,
-    )
-    {
+    ) {
         $map = [];
         foreach ($commandTasks as $commandTask) {
             $map[$commandTask->commandClass] = $commandTask;

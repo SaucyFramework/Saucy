@@ -20,8 +20,8 @@ final readonly class ProjectorMapBuilder
         )->findAll();
 
         $projectors = [];
-        foreach ($attributes as $attribute){
-            if(!$attribute instanceof ClassAttribute){
+        foreach ($attributes as $attribute) {
+            if(!$attribute instanceof ClassAttribute) {
                 throw new \Exception('Class ' . $attribute->class . ' is annotated with ' . Projector::class . ' but is not annotating a class');
             }
 
@@ -29,7 +29,7 @@ final readonly class ProjectorMapBuilder
             /** @var class-string<MessageConsumer> $projectorClass */
             $projectorClass = $attribute->class;
 
-            $projectors[] = match (get_class($projectionAttribute)){
+            $projectors[] = match (get_class($projectionAttribute)) {
                 Projector::class => new ProjectorConfig(
                     $projectorClass,
                     $projectorClass::getMessages(),

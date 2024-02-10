@@ -16,16 +16,14 @@ final readonly class TriggerSubscriptionProcessesAfterPersist implements AfterPe
         private AllStreamSubscriptionProcessManager $allStreamSubscriptionProcessManager,
         private StreamSubscriptionProcessManager $streamSubscriptionProcessManager,
         private TypeMap $typeMap,
-    )
-    {
-    }
+    ) {}
 
     public function trigger(StreamName $streamName, StreamEvent ...$streamEvents): void
     {
         $eventTypes = array_map(fn(StreamEvent $streamEvent) => $this->typeMap->instanceToType($streamEvent->payload), $streamEvents);
         $this->allStreamSubscriptionProcessManager->startProcessesThatRequireEvents($eventTypes);
 
-        if($streamName instanceof AggregateStreamName){
+        if($streamName instanceof AggregateStreamName) {
             $this->streamSubscriptionProcessManager->startProcessesForAggregateInstance($streamName, $eventTypes);
         }
     }

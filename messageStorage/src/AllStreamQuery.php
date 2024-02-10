@@ -13,7 +13,5 @@ final readonly class AllStreamQuery
         public int $fromPosition,
         public int $limit,
         public ?array $eventTypes = [],
-    )
-    {
-    }
+    ) {}
 }
