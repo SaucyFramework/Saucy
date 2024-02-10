@@ -22,31 +22,43 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
         $this->queryBuilder = $this->connection->table($this->tableName());
     }
 
-    protected function upsert(array $array): void
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function upsert(array $data): void
     {
         if($this->queryBuilder->exists()){
-            $this->update($array);
+            $this->update($data);
             return;
         }
-        $this->create($array);
+        $this->create($data);
     }
 
-    protected function update(array $array): void
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function update(array $data): void
     {
-        $this->queryBuilder->clone()->update($array);
+        $this->queryBuilder->clone()->update($data);
     }
     protected function increment(string $column, int $amount = 1): void
     {
         $this->queryBuilder->clone()->increment($column, $amount);
     }
 
-    protected function create(array $array): void
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function create(array $data): void
     {
-        $this->queryBuilder->clone()->insert(array_merge($array, [
+        $this->queryBuilder->clone()->insert(array_merge($data, [
             $this->idColumnName() => $this->scopedAggregateRootId,
         ]));
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     protected function find(): ?array
     {
         $row = $this->queryBuilder->clone()->first();
@@ -111,7 +123,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
 
     }
 
-    protected function reset()
+    protected function reset(): void
     {
         $this->connection->getSchemaBuilder()->dropIfExists($this->tableName());
     }

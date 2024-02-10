@@ -4,7 +4,10 @@ namespace Saucy\Core\Projections\Eloquent;
 
 final class CannotUpdateReadOnlyField extends \Exception
 {
-    public static function forFields(array $fields)
+    /**
+     * @param array<int, string> $fields
+     */
+    public static function forFields(array $fields): CannotUpdateReadOnlyField
     {
         if (count($fields) === 1) {
             return new self("Field {$fields[0]} is read only");

@@ -2,6 +2,8 @@
 
 namespace Saucy\Core\EventSourcing\CommandHandling;
 
+use EventSauce\EventSourcing\AggregateRoot;
+use EventSauce\EventSourcing\AggregateRootId;
 use Saucy\Core\EventSourcing\AggregateStore;
 
 final readonly class EventSourcingCommandHandler
@@ -16,6 +18,12 @@ final readonly class EventSourcingCommandHandler
     {
     }
 
+    /**
+     * @param object $message
+     * @param array<string, mixed> $metaData
+     * @return void
+     * @throws \Exception
+     */
     public function handle(object $message, array $metaData): void
     {
         if (!array_key_exists(self::AGGREGATE_ROOT_CLASS, $metaData)) {
@@ -32,7 +40,9 @@ final readonly class EventSourcingCommandHandler
 
         $aggregateRootId = $message->{$metaData[self::AGGREGATE_ROOT_ID_PROPERTY]};
 
-        $aggregate = $this->eventSourcingRepository->retrieve($metaData[self::AGGREGATE_ROOT_CLASS], $aggregateRootId);
+        /** @var class-string<AggregateRoot<AggregateRootId>> $aggregateRootClass */
+        $aggregateRootClass = $metaData[self::AGGREGATE_ROOT_CLASS];
+        $aggregate = $this->eventSourcingRepository->retrieve($aggregateRootClass, $aggregateRootId);
         $aggregate->{$metaData[self::AGGREGATE_METHOD]}($message);
         $this->eventSourcingRepository->persist($aggregate);
     }

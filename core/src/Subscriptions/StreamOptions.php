@@ -6,6 +6,9 @@ use DateInterval;
 
 final readonly class StreamOptions
 {
+    /**
+     * @param array<string>|null $eventTypes
+     */
     public function __construct(
         public int $pageSize = 100,
         public int $commitBatchSize = 10,

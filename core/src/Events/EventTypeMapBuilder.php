@@ -12,6 +12,9 @@ final readonly class EventTypeMapBuilder
         return new self();
     }
 
+    /**
+     * @param array<class-string> $classes
+     */
     public function create(array $classes): TypeMap
     {
         $classMap = [];

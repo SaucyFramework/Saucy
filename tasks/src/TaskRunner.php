@@ -12,7 +12,7 @@ final readonly class TaskRunner
     {
     }
 
-    public function run(TaskLocation $taskLocation)
+    public function run(TaskLocation $taskLocation): mixed
     {
         $arguments = func_get_args();
         // Remove the first argument, which is the task location

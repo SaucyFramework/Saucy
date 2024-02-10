@@ -22,6 +22,9 @@ final readonly class AggregateStore
     {
     }
 
+    /**
+     * @param AggregateRoot<AggregateRootId> $aggregateRoot
+     */
     public function persist(AggregateRoot $aggregateRoot): void
     {
         $streamName = $this->streamNameMapper->getStreamNameFor(
@@ -51,9 +54,10 @@ final readonly class AggregateStore
     }
 
     /**
-     * @param class-string<AggregateRoot> $aggregateRootClass
+     * @template T of AggregateRoot
+     * @param class-string<T> $aggregateRootClass
      * @param AggregateRootId $aggregateRootId
-     * @return AggregateRoot
+     * @return T
      */
     public function retrieve(string $aggregateRootClass, AggregateRootId $aggregateRootId): AggregateRoot
     {

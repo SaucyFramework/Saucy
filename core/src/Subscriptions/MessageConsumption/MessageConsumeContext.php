@@ -6,6 +6,9 @@ use Saucy\Core\Events\Streams\StreamName;
 
 readonly class MessageConsumeContext
 {
+    /**
+     * @param array<string, mixed> $metaData
+     */
     public function __construct(
         public string $eventId,
         public string $subscriptionId,

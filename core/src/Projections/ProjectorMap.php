@@ -14,6 +14,9 @@ final readonly class ProjectorMap
         $this->projectorConfigs = $projectorConfig;
     }
 
+    /**
+     * @return ProjectorConfig[]
+     */
     public function getProjectorConfigs(): array
     {
         return $this->projectorConfigs;

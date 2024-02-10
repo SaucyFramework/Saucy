@@ -48,6 +48,10 @@ final readonly class StreamSubscriptionProcessManager
         StreamPollSubscriptionJob::dispatch($stream->subscriptionId, $processId, $aggregateStreamName)->onQueue($stream->streamOptions->queue);
     }
 
+    /**
+     * @param array<string>|null $eventTypes
+     * @throws \Exception
+     */
     public function startProcessesForAggregateInstance(AggregateStreamName $streamName, ?array $eventTypes = null): void
     {
         if(!$streamName instanceof AggregateStreamName){

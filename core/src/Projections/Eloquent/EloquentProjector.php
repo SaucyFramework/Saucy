@@ -9,7 +9,7 @@ use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 
 abstract class EloquentProjector extends TypeBasedConsumer
 {
-    protected $idValue;
+    protected string $idValue;
 
     /**
      * @var class-string<Model>
@@ -20,22 +20,32 @@ abstract class EloquentProjector extends TypeBasedConsumer
     {
         return static::$model::find($this->idValue);
     }
-    protected function upsert(array $array): void
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function upsert(array $data): void
     {
         if(static::$model::find($this->idValue)){
-            $this->update($array);
+            $this->update($data);
             return;
         }
-        $this->create($array);
+        $this->create($data);
     }
 
-    protected function create(array $array): void
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function create(array $data): void
     {
         static::$model::create(array_merge([
             $this->getKeyName() => $this->idValue,
-        ], $array));
+        ], $data));
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
     protected function update(array $data): void
     {
         $model = static::$model::findOrFail($this->idValue);

@@ -18,6 +18,10 @@ final readonly class AggregateRootTypeMapBuilder
         return new self();
     }
 
+    /**
+     * @param array<class-string> $classes
+     * @throws \Exception
+     */
     public function create(array $classes): TypeMap
     {
         $classMap = [];

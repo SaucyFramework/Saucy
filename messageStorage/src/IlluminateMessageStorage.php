@@ -2,8 +2,10 @@
 
 namespace Saucy\MessageStorage;
 
+use DateTimeImmutable;
 use Generator;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\LazyCollection;
 use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
@@ -73,7 +75,11 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
         );
     }
 
-    private function mapRowsToEvents(\Illuminate\Support\LazyCollection $rows): Generator
+    /**
+     * @param LazyCollection<int, object> $rows
+     * @return Generator
+     */
+    private function mapRowsToEvents(LazyCollection $rows): Generator
     {
         foreach ($rows as $row) {
             yield new StreamEvent(
@@ -90,7 +96,12 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
         }
     }
 
-    private function mapRowsToStoredEvents(\Illuminate\Support\LazyCollection $rows): Generator
+    /**
+     * @param LazyCollection<int, object> $rows
+     * @return Generator
+     * @throws \Exception
+     */
+    private function mapRowsToStoredEvents(LazyCollection $rows): Generator
     {
         foreach ($rows as $row) {
             yield new StoredEvent(
@@ -103,7 +114,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                 metadataJson: $row->metadata,
                 streamPosition: $row->stream_position,
                 globalPosition: $row->global_position,
-                createdAt: new \DateTimeImmutable($row->created_at),
+                createdAt: new DateTimeImmutable($row->created_at),
             );
         }
     }
@@ -113,7 +124,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
      * @param int $position
      * @return Generator<StoredEvent>
      */
-    public function retrieveAllInStreamSinceCheckpoint(StreamName $streamName, int $position): \Generator
+    public function retrieveAllInStreamSinceCheckpoint(StreamName $streamName, int $position): Generator
     {
         return $this->mapRowsToStoredEvents(
             $this->connection->table($this->tableName)

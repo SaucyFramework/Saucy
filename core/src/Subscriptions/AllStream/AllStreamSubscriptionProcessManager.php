@@ -36,6 +36,10 @@ final readonly class AllStreamSubscriptionProcessManager
         }
     }
 
+    /**
+     * @param array<string> $eventTypes
+     * @return void
+     */
     public function startProcessesThatRequireEvents(array $eventTypes): void
     {
         // start all streams as processes

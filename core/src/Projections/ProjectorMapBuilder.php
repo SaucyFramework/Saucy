@@ -8,6 +8,9 @@ use Saucy\Core\Serialisation\TypeMap;
 
 final readonly class ProjectorMapBuilder
 {
+    /**
+     * @param array<class-string> $classes
+     */
     public static function buildForClasses(array $classes, TypeMap $typeMap): ProjectorMap
     {
         $attributes = AttributeFinder::inClasses($classes)->withNames(

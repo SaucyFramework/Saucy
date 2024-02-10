@@ -32,7 +32,7 @@ final readonly class QueryBus
         $lastCallable = static fn() => null;
 
         while ($middleware = array_pop($middlewareList)) {
-            $lastCallable = static fn(object $message) => $middleware->run($message, $lastCallable);
+            $lastCallable = static fn(Query $message) => $middleware->run($message, $lastCallable);
         }
 
         return $lastCallable;
