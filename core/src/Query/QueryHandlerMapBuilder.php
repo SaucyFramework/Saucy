@@ -6,6 +6,7 @@ use Robertbaelde\AttributeFinder\AttributeFinder;
 use Robertbaelde\AttributeFinder\ClassAttribute;
 use Robertbaelde\AttributeFinder\MethodAttribute;
 use Saucy\Tasks\ClassMethod;
+use Saucy\Tasks\TaskLocation;
 
 final readonly class QueryHandlerMapBuilder
 {
@@ -15,6 +16,7 @@ final readonly class QueryHandlerMapBuilder
     public static function buildQueryMapForClasses(array $classes): QueryMap
     {
         $attributes = AttributeFinder::inClasses($classes)->withName(QueryHandler::class)->findAll();
+
         $map = [];
         foreach ($attributes as $attribute){
             if($attribute instanceof ClassAttribute){
@@ -39,7 +41,9 @@ final readonly class QueryHandlerMapBuilder
                     throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has a non-named type for the first parameter');
                 }
 
-                $map[$queryType->getName()] = new ClassMethod($attribute->method->getDeclaringClass()->getName(), $attribute->method->getName());
+                /** @var class-string $queryClassString */
+                $queryClassString = $queryType->getName();
+                $map[$queryClassString] = new ClassMethod($attribute->method->getDeclaringClass()->getName(), $attribute->method->getName());
             }
         }
 

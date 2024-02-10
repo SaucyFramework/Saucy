@@ -5,6 +5,7 @@ namespace Saucy\Core\Projections;
 use Robertbaelde\AttributeFinder\AttributeFinder;
 use Robertbaelde\AttributeFinder\ClassAttribute;
 use Saucy\Core\Serialisation\TypeMap;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
 
 final readonly class ProjectorMapBuilder
 {
@@ -25,20 +26,18 @@ final readonly class ProjectorMapBuilder
             }
 
             $projectionAttribute = $attribute->attribute;
+            /** @var class-string<MessageConsumer> $projectorClass */
             $projectorClass = $attribute->class;
-
-            // add check to see if implementing
-            $handlingMessages = $projectorClass::getMessages();
 
             $projectors[] = match (get_class($projectionAttribute)){
                 Projector::class => new ProjectorConfig(
                     $projectorClass,
-                    $handlingMessages,
+                    $projectorClass::getMessages(),
                     ProjectorType::AllStream
                 ),
                 AggregateProjector::class => new ProjectorConfig(
                     $projectorClass,
-                    $handlingMessages,
+                    $projectorClass::getMessages(),
                     ProjectorType::AggregateInstance,
                     $typeMap->classNameToType($projectionAttribute->aggregateClass),
                 ),

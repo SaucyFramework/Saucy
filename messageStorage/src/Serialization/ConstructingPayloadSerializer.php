@@ -20,7 +20,7 @@ final readonly class ConstructingPayloadSerializer implements EventSerializer
 
         return new SerializationResult(
             eventType: $this->typeMap->instanceToType($event),
-            payload: json_encode($event->toPayload()),
+            payload: json_encode($event->toPayload(), JSON_THROW_ON_ERROR),
         );
 
     }

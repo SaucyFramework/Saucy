@@ -26,7 +26,9 @@ final class InflectHandlerMethodsFromType implements HandleMethodInflector
     }
 
     /**
+     * @param object|class-string $handler
      * @return array<string, string[]>
+     * @throws \ReflectionException
      */
     public function findMethodsToHandleEvent(object|string $handler): array
     {

@@ -83,15 +83,15 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
     {
         foreach ($rows as $row) {
             yield new StreamEvent(
-                    eventId: $row->message_id,
+                    eventId: $row->message_id, // @phpstan-ignore-line
                     payload: $this->eventSerializer->deserialize(
                         new SerializationResult(
-                            eventType: $row->message_type,
-                            payload: $row->payload,
+                            eventType: $row->message_type, // @phpstan-ignore-line
+                            payload: $row->payload, // @phpstan-ignore-line
                         )
                     ),
-                    metadata: json_decode($row->metadata, true),
-                    position: $row->stream_position,
+                    metadata: json_decode($row->metadata, true), // @phpstan-ignore-line
+                    position: $row->stream_position, // @phpstan-ignore-line
                 );
         }
     }
@@ -105,16 +105,16 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
     {
         foreach ($rows as $row) {
             yield new StoredEvent(
-                eventId: $row->message_id,
-                eventType: $row->message_type,
-                streamNameType: $row->stream_name_type,
-                streamType: $row->stream_type,
-                streamName: $row->stream_name,
-                payloadJson: $row->payload,
-                metadataJson: $row->metadata,
-                streamPosition: $row->stream_position,
-                globalPosition: $row->global_position,
-                createdAt: new DateTimeImmutable($row->created_at),
+                eventId: $row->message_id, // @phpstan-ignore-line
+                eventType: $row->message_type, // @phpstan-ignore-line
+                streamNameType: $row->stream_name_type, // @phpstan-ignore-line
+                streamType: $row->stream_type, // @phpstan-ignore-line
+                streamName: $row->stream_name, // @phpstan-ignore-line
+                payloadJson: $row->payload, // @phpstan-ignore-line
+                metadataJson: $row->metadata, // @phpstan-ignore-line
+                streamPosition: $row->stream_position, // @phpstan-ignore-line
+                globalPosition: $row->global_position, // @phpstan-ignore-line
+                createdAt: new DateTimeImmutable($row->created_at), // @phpstan-ignore-line
             );
         }
     }
