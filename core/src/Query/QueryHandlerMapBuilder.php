@@ -25,7 +25,21 @@ final readonly class QueryHandlerMapBuilder
                 if(count($parameters) === 0){
                     throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has no parameters');
                 }
-                $map[$parameters[0]->getType()->getName()] = new ClassMethod($attribute->method->getDeclaringClass()->getName(), $attribute->method->getName());
+
+                $queryType = $parameters[0]->getType();
+                if($queryType instanceof \ReflectionUnionType){
+                    throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has a union type as first parameter');
+                }
+
+                if($queryType === null){
+                    throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has no type for the first parameter');
+                }
+
+                if(!$queryType instanceof \ReflectionNamedType){
+                    throw new \Exception('Method ' . $attribute->method->getDeclaringClass() . '::' . $attribute->method->getName() . ' is annotated with ' . QueryHandler::class . ' but has a non-named type for the first parameter');
+                }
+
+                $map[$queryType->getName()] = new ClassMethod($attribute->method->getDeclaringClass()->getName(), $attribute->method->getName());
             }
         }
 

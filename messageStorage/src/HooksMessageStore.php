@@ -10,7 +10,7 @@ use Saucy\MessageStorage\Hooks\AfterPersistHook;
 final readonly class HooksMessageStore implements AllStreamMessageRepository, AllStreamReader
 {
     public function __construct(
-        private AllStreamMessageRepository $inner,
+        private AllStreamMessageRepository&AllStreamReader $inner,
         private ?AfterPersistHook $afterPersistHook = null,
     )
     {

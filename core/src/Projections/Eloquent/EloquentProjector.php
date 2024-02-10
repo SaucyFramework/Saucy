@@ -39,13 +39,13 @@ abstract class EloquentProjector extends TypeBasedConsumer
     protected function update(array $data): void
     {
         $model = static::$model::findOrFail($this->idValue);
-        $model->writable(array_keys($data))->update($data);
+        $model->writable(array_keys($data))->update($data); // @phpstan-ignore-line
     }
 
     protected function increment(string $column, int $increment = 1): void
     {
         $model = static::$model::findOrFail($this->idValue);
-        $model->writable([$column])->increment($column, $increment);
+        $model->writable([$column])->increment($column, $increment); // @phpstan-ignore-line
     }
 
     protected function getKeyName(): string

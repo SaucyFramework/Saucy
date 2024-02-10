@@ -3,6 +3,8 @@
 namespace Saucy\Core\EventSourcing\CommandHandling;
 
 use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionUnionType;
 use Saucy\Core\Command\CommandHandler;
 use Saucy\Core\Command\CommandTask;
 use Saucy\Core\Command\CommandTaskMap;
@@ -37,13 +39,24 @@ final readonly class EventSourcingCommandMapBuilder
                 /** @var CommandHandler $attribute */
                 $attribute = $attributes[0]->newInstance();
 
-                $handlingCommand = $method->getParameters()[0]->getType()?->getName();
+                $handlingCommandReflectionType = $method->getParameters()[0]->getType();
+                if(!$handlingCommandReflectionType instanceof ReflectionNamedType){
+                    if($handlingCommandReflectionType instanceof ReflectionUnionType){
+                        throw new \Exception("Union command handlers not yet supported");
+                    }
+                    if($handlingCommandReflectionType instanceof \ReflectionIntersectionType){
+                        throw new \Exception("Intersection type as command arguments are not supported");
+                    }
+                    throw new \Exception("Method '$class@{$method->getName()}' marked with CommandHandler attribute doesnt have a command as first argument");
+                }
+
+                $handlingCommand = $handlingCommandReflectionType->getName();
                 if($handlingCommand === null || !class_exists($handlingCommand)){
                     throw new \Exception("Method '$class@{$method->getName()}' marked with CommandHandler attribute doesnt have a command as first argument");
                 }
 
                 if(array_key_exists($handlingCommand, $map)){
-                    throw new \Exception('Command ' . $handlingCommand . ' is already handled by ' . $map[$handlingCommand]->containerIdentifier . '::' . $map[$handlingCommand]->methodName);
+                    throw new \Exception('Command ' . $handlingCommand . ' is already handled by ' . $map[$handlingCommand]->containerIdentifier . '::' . $map[$handlingCommand]->methodName); // @phpstan-ignore-line
                 }
 
                 $commandReflection = new ReflectionClass($handlingCommand);
@@ -60,7 +73,11 @@ final readonly class EventSourcingCommandMapBuilder
                 $aggregateRoot = $aggregateRoot[0]->newInstance();
                 if($aggregateRoot->aggregateIdClass !== null){
                     foreach ($commandReflection->getProperties() as $property){
-                        if($property->getType()->getName() === $aggregateRoot->aggregateIdClass){
+                        $propertyType = $property->getType();
+                        if(!$propertyType instanceof ReflectionNamedType){
+                            continue;
+                        }
+                        if($propertyType->getName() === $aggregateRoot->aggregateIdClass){
                             $map[$handlingCommand] = new CommandTask(
                                 $handlingCommand,
                                 new ClassMethod(EventSourcingCommandHandler::class, $method->isStatic() ? 'handleStatic' : 'handle'),

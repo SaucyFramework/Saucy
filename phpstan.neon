@@ -1,3 +1,5 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
 parameters:
 
     paths:
@@ -8,7 +10,7 @@ parameters:
 
 
     # Level 9 is the highest level
-    level: 1
+    level: 2
     ignoreErrors:
         #- '#Method [a-zA-Z0-9\\_]++::toPayload\(\) return type has no value type specified in iterable type array#'
         #- '#Method [a-zA-Z0-9\\_]++::fromPayload\(\) has parameter \$payload with no value type specified in iterable type array#'
