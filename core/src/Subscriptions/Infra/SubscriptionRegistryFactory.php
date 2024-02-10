@@ -33,7 +33,8 @@ final readonly class SubscriptionRegistryFactory
         foreach ($projectorMap->getProjectorConfigs() as $projectorConfig){
             $streams[] = match ($projectorConfig->projectorType){
                 ProjectorType::AllStream => self::buildAllStreamSubscription($projectorConfig, $typeMap, $application),
-                ProjectorType::AggregateInstance => self::buildStreamSubscription($projectorConfig, $typeMap, $application)
+                ProjectorType::AggregateInstance => self::buildStreamSubscription($projectorConfig, $typeMap, $application),
+                default => throw new \RuntimeException('Unknown projector type'),
             };
         }
         return $streams;
@@ -118,7 +119,7 @@ final readonly class SubscriptionRegistryFactory
      * @param ProjectorMap $projectorMap
      * @param Application $application
      * @param TypeMap $typeMap
-     * @return array<AllStreamSubscription>
+     * @return array<StreamSubscription>
      */
     public static function buildStreamSubscriptionForProjectorMap(ProjectorMap $projectorMap, Application $application, TypeMap $typeMap): array
     {

@@ -61,7 +61,7 @@ final readonly class AllStreamSubscriptionProcessManager
             $this->runningProcesses->start(
                 $stream->subscriptionId,
                 $processId,
-                (new DateTime('now'))->add(new DateInterval("PT{$stream->streamOptions->processTimeoutInSeconds}S") ?? $this->defaultProcessTimeout)
+                (new DateTime('now'))->add($stream->streamOptions->processTimeoutInSeconds !== null ? new DateInterval("PT{$stream->streamOptions->processTimeoutInSeconds}S") : $this->defaultProcessTimeout)
             );
         } catch (StartProcessException $exception){
             // process already running, stop execution

@@ -13,7 +13,6 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    private int $startTimestamp;
     private int $timestampZeroMessagesHandled;
 
     public function __construct(
@@ -28,7 +27,6 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         RunningProcesses $runningProcesses,
     ): void
     {
-        $this->startTimestamp = time();
         $subscription = $subscriptionRegistry->get($this->subscriptionId);
         $this->runSubscription($subscription, $runningProcesses);
     }

@@ -51,7 +51,7 @@ final readonly class EventSourcingCommandMapBuilder
                 }
 
                 $handlingCommand = $handlingCommandReflectionType->getName();
-                if($handlingCommand === null || !class_exists($handlingCommand)){
+                if(!class_exists($handlingCommand)){
                     throw new \Exception("Method '$class@{$method->getName()}' marked with CommandHandler attribute doesnt have a command as first argument");
                 }
 
