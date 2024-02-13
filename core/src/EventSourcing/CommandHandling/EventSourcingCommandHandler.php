@@ -44,4 +44,23 @@ final readonly class EventSourcingCommandHandler
         $aggregate->{$metaData[self::AGGREGATE_METHOD]}($message);
         $this->eventSourcingRepository->persist($aggregate);
     }
+
+    /**
+     * @param array<string, mixed> $metaData
+     */
+    public function handleStatic(object $message, array $metaData): void
+    {
+        if (!array_key_exists(self::AGGREGATE_ROOT_CLASS, $metaData)) {
+            throw new \Exception('Aggregate root class not found in metadata');
+        }
+
+        if (!array_key_exists(self::AGGREGATE_METHOD, $metaData)) {
+            throw new \Exception('Aggregate method not found in metadata');
+        }
+
+        /** @var class-string<AggregateRoot<AggregateRootId>> $aggregateRootClass */
+        $aggregateRootClass = $metaData[self::AGGREGATE_ROOT_CLASS];
+        $aggregate = $aggregateRootClass::{$metaData[self::AGGREGATE_METHOD]}($message);
+        $this->eventSourcingRepository->persist($aggregate);
+    }
 }

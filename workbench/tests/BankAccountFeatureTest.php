@@ -6,6 +6,7 @@ use Saucy\Core\Command\CommandBus;
 use Saucy\Core\Query\QueryBus;
 use Workbench\App\BankAccount\BankAccountId;
 use Workbench\App\BankAccount\Commands\CreditBankAccount;
+use Workbench\App\BankAccount\Commands\OpenBankAccount;
 use Workbench\App\BankAccount\Eloquent\BankAccountModel;
 use Workbench\App\BankAccount\Query\GetBankAccountBalance;
 use Workbench\App\BankAccount\Query\GetTotalBankBalance;
@@ -17,6 +18,7 @@ final class BankAccountFeatureTest extends WithDatabaseTestCase
     {
         $bankAccountId = BankAccountId::generate();
         $commandBus = $this->app->make(CommandBus::class);
+        $commandBus->handle(new OpenBankAccount( $bankAccountId));
         $commandBus->handle(CreditBankAccount::withAmount(100, $bankAccountId));
         $commandBus->handle(CreditBankAccount::withAmount(100, $bankAccountId));
 
