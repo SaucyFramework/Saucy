@@ -80,6 +80,10 @@ final readonly class EventSourcingCommandMapBuilder
                         if($propertyType->getName() === $aggregateRoot->aggregateIdClass) {
                             $map[$handlingCommand] = new CommandTask(
                                 $handlingCommand,
+                                /**
+                                 * @see EventSourcingCommandHandler::handle()
+                                 * @see EventSourcingCommandHandler::handleStatic()
+                                 */
                                 new ClassMethod(EventSourcingCommandHandler::class, $method->isStatic() ? 'handleStatic' : 'handle'),
                                 [
                                     EventSourcingCommandHandler::AGGREGATE_ROOT_CLASS => $class,
