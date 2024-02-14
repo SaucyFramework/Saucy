@@ -6,7 +6,7 @@ use EventSauce\EventSourcing\AggregateRootId;
 use Symfony\Component\Uid\Ulid as UlidGenerator;
 
 /** @phpstan-consistent-constructor */
-abstract class Ulid implements AggregateRootId
+abstract readonly class Ulid implements AggregateRootId
 {
     private function __construct(private string $id)
     {
