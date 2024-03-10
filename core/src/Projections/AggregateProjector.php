@@ -9,5 +9,6 @@ class AggregateProjector
 {
     public function __construct(
         public string $aggregateClass,
+        public bool $async = true,
     ) {}
 }

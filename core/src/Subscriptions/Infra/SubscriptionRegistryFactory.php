@@ -131,7 +131,24 @@ final readonly class SubscriptionRegistryFactory
     {
         $streams = [];
         foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
-            if($projectorConfig->projectorType === ProjectorType::AggregateInstance) {
+            if($projectorConfig->projectorType === ProjectorType::AggregateInstance && $projectorConfig->async) {
+                $streams[] = self::buildStreamSubscription($projectorConfig, $typeMap, $application);
+            }
+        }
+        return $streams;
+    }
+
+    /**
+     * @param ProjectorMap $projectorMap
+     * @param Application $application
+     * @param TypeMap $typeMap
+     * @return array<StreamSubscription>
+     */
+    public static function buildSyncStreamSubscriptionForProjectorMap(ProjectorMap $projectorMap, Application $application, TypeMap $typeMap): array
+    {
+        $streams = [];
+        foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
+            if($projectorConfig->projectorType === ProjectorType::AggregateInstance && !$projectorConfig->async) {
                 $streams[] = self::buildStreamSubscription($projectorConfig, $typeMap, $application);
             }
         }

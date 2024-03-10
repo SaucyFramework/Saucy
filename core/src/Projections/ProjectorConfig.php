@@ -15,5 +15,6 @@ final readonly class ProjectorConfig
         public array $handlingEventClasses,
         public ProjectorType $projectorType,
         public ?string $aggregateType = null,
+        public bool $async = true,
     ) {}
 }

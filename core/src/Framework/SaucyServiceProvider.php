@@ -23,12 +23,15 @@ use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Checkpoints\IlluminateCheckpointStore;
 use Saucy\Core\Subscriptions\Infra\IlluminateRunningProcesses;
+use Saucy\Core\Subscriptions\Infra\PlaySynchronousProjectorsAfterPersist;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\SubscriptionRegistryFactory;
 use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
+use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
 use Saucy\MessageStorage\AllStreamMessageRepository;
 use Saucy\MessageStorage\AllStreamReader;
+use Saucy\MessageStorage\Hooks\Hooks;
 use Saucy\MessageStorage\HooksMessageStore;
 use Saucy\MessageStorage\IlluminateMessageStorage;
 use Saucy\MessageStorage\Serialization\ConstructingPayloadSerializer;
@@ -96,7 +99,6 @@ final class SaucyServiceProvider extends ServiceProvider
             );
         });
 
-
         $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($typeMap) {
             return new HooksMessageStore(
                 new IlluminateMessageStorage(
@@ -105,7 +107,10 @@ final class SaucyServiceProvider extends ServiceProvider
                     $typeMap,
                     'event_store',
                 ),
-                $application->make(TriggerSubscriptionProcessesAfterPersist::class),
+                new Hooks(
+                    $application->make(TriggerSubscriptionProcessesAfterPersist::class),
+                    $application->make(PlaySynchronousProjectorsAfterPersist::class),
+                ),
             );
         });
 
@@ -118,6 +123,10 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->bind(StreamSubscriptionRegistry::class, fn(Application $application) => new StreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap)
+        ));
+
+        $this->app->bind(SyncStreamSubscriptionRegistry::class, fn(Application $application) => new SyncStreamSubscriptionRegistry(
+            ...SubscriptionRegistryFactory::buildSyncStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap)
         ));
 
         $this->app->instance(StreamNameMapper::class, new AggregateRootStreamNameMapper());

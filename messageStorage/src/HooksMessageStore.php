@@ -6,12 +6,13 @@ use Generator;
 use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\MessageStorage\Hooks\AfterPersistHook;
+use Saucy\MessageStorage\Hooks\Hook;
 
 final readonly class HooksMessageStore implements AllStreamMessageRepository, AllStreamReader
 {
     public function __construct(
         private AllStreamMessageRepository&AllStreamReader $inner,
-        private ?AfterPersistHook $afterPersistHook = null,
+        private ?Hook $afterPersistHook = null,
     ) {}
 
     public function persist(StreamName $streamName, StreamEvent ...$streamEvents): void

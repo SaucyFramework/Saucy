@@ -9,7 +9,7 @@ use Saucy\Core\Query\QueryHandler;
 use Workbench\App\BankAccount\BankAccountAggregate;
 use Workbench\App\BankAccount\Events\AccountCredited;
 
-#[AggregateProjector(BankAccountAggregate::class)]
+#[AggregateProjector(BankAccountAggregate::class, async: false)]
 final class BalanceProjector extends IlluminateDatabaseProjector
 {
     public function ProjectAccountCredited(AccountCredited $accountCredited): void

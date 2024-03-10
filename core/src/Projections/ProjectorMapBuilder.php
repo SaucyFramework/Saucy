@@ -40,6 +40,7 @@ final readonly class ProjectorMapBuilder
                     $projectorClass::getMessages(),
                     ProjectorType::AggregateInstance,
                     $typeMap->classNameToType($projectionAttribute->aggregateClass),
+                    $projectionAttribute->async,
                 ),
                 default => throw new \Exception("projection attribute not supported"),
             };
