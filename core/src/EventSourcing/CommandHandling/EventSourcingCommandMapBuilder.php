@@ -89,6 +89,7 @@ final readonly class EventSourcingCommandMapBuilder
                                     EventSourcingCommandHandler::AGGREGATE_ROOT_CLASS => $class,
                                     EventSourcingCommandHandler::AGGREGATE_ROOT_ID_PROPERTY => $property->getName(),
                                     EventSourcingCommandHandler::AGGREGATE_METHOD => $method->getName(),
+                                    EventSourcingCommandHandler::COMMAND_ARGUMENT_NAME => $method->getParameters()[0]->getName(),
                                 ]
                             );
                             continue 2;
