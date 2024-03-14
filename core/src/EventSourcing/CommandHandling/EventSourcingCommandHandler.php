@@ -49,9 +49,8 @@ final readonly class EventSourcingCommandHandler
             } else {
                 $aggregate->{$metaData[self::AGGREGATE_METHOD]}($message);
             }
+        } finally {
             $this->eventSourcingRepository->persist($aggregate);
-        } catch (\Throwable $e) {
-            throw $e;
         }
     }
 
