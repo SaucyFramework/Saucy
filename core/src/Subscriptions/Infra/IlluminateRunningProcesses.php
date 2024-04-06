@@ -37,7 +37,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         return $this->connection->table($this->tableName)
             ->where('subscription_id', $subscriptionId)
             ->when($processId !== null, fn($query) => $query->where('process_id', $processId))
-            ->where('expires_at', '>', now())
+            ->where('expires_at', '>', (new \DateTime('now'))->format('Y-m-d H:i:s'))
             ->exists();
     }
 
