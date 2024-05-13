@@ -12,4 +12,9 @@ final readonly class HandlerFilter implements ConsumeFilter
     {
         $this->messageConsumer->handle($context);
     }
+
+    public function handles(string $className): bool
+    {
+        return $this->messageConsumer instanceof $className;
+    }
 }
