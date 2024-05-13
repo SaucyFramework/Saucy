@@ -17,7 +17,7 @@ final readonly class TracePersistedEventsHook implements AfterPersistHook
     public function trigger(StreamName $streamName, StreamEvent ...$streamEvents): void
     {
         foreach ($streamEvents as $event){
-            $this->tracer->trace('persistedAtPosition', $event->position);
+            $this->tracer->trace('persistedEvent', $event->eventId);
         }
     }
 }

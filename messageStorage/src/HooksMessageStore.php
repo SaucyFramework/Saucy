@@ -5,7 +5,6 @@ namespace Saucy\MessageStorage;
 use Generator;
 use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamName;
-use Saucy\MessageStorage\Hooks\AfterPersistHook;
 use Saucy\MessageStorage\Hooks\Hook;
 
 final readonly class HooksMessageStore implements AllStreamMessageRepository, AllStreamReader
