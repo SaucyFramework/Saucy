@@ -6,7 +6,8 @@
         "ext-pdo": "*",
         "eventsauce/eventsauce": "^3.5",
         "league/construct-finder": "^1.3",
-        "robertbaelde/attribute-finder": "^0.1.0"
+        "robertbaelde/attribute-finder": "^0.1.0",
+        "eventsauce/backoff": "^1.2"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
