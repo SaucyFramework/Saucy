@@ -46,7 +46,6 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
                 $this->timestampZeroMessagesHandled = time();
             }
 
-
             if(time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
                 $runningProcesses->stop($this->processId);
                 return;

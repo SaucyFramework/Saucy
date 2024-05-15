@@ -49,7 +49,7 @@ final readonly class AllStreamSubscription
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
             $messageCount += 1;
             // if batch size reached, commit
-            if($messageCount === $this->streamOptions->commitBatchSize) {
+            if($messageCount % $this->streamOptions->commitBatchSize === 0) {
                 $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
                 $lastCommit = $storedEvent->globalPosition;
             }

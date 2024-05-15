@@ -2,6 +2,7 @@
 
 namespace Saucy\Core\Subscriptions\Infra;
 
+use DateInterval;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\Log;
 use PDOException;
@@ -19,6 +20,12 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
      */
     public function start(string $subscriptionId, string $processId, \DateTime $expiresAt): void
     {
+        // cleanup process when running longer than x seconds
+        $this->connection->table($this->tableName)
+            ->where('subscription_id', $subscriptionId)
+            ->where('expires_at', '<', (new \DateTime('now'))->sub(new \DateInterval('PT30S'))->format('Y-m-d H:i:s'))
+            ->delete();
+
         try {
             $this->connection->table($this->tableName)->insert([
                 'subscription_id' => $subscriptionId,
@@ -26,7 +33,6 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
                 'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
             ]);
         } catch (PDOException $e) {
-            Log::notice("pdo exception: " . $e->getCode());
             throw StartProcessException::cannotGetLockForProcess();
         }
 
