@@ -7,7 +7,6 @@ use EventSauce\BackOff\BackOffStrategy;
 use EventSauce\BackOff\LinearBackOffStrategy;
 use EventSauce\EventSourcing\AggregateRoot;
 use EventSauce\EventSourcing\AggregateRootId;
-use PDOException;
 use Saucy\Core\EventSourcing\AggregateStore;
 
 final readonly class EventSourcingCommandHandler
@@ -80,9 +79,14 @@ final readonly class EventSourcingCommandHandler
             throw new \Exception('Aggregate method not found in metadata');
         }
 
-        /** @var class-string<AggregateRoot<AggregateRootId>> $aggregateRootClass */
         $aggregateRootClass = $metaData[self::AGGREGATE_ROOT_CLASS];
-        $aggregate = $aggregateRootClass::{$metaData[self::AGGREGATE_METHOD]}($message);
+        if(array_key_exists(self::COMMAND_ARGUMENT_NAME, $metaData)) {
+            $aggregate = app()->call([$aggregateRootClass, $metaData[self::AGGREGATE_METHOD]], [$metaData[self::COMMAND_ARGUMENT_NAME] => $message]);
+        } else {
+            $aggregate = $aggregateRootClass::{$metaData[self::AGGREGATE_METHOD]}($message);
+        }
+
+        /** @var class-string<AggregateRoot<AggregateRootId>> $aggregateRootClass */
         $this->eventSourcingRepository->persist($aggregate);
     }
 }
