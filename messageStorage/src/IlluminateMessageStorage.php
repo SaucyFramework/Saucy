@@ -70,6 +70,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
                 return $query->whereIn('message_type', $streamQuery->eventTypes);
             })
+            ->limit($streamQuery->limit)
             ->orderBy('global_position')
             ->cursor()
         );
