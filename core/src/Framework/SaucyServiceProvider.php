@@ -19,6 +19,7 @@ use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlerMapBuilder;
 use Saucy\Core\Query\QueryHandlingMiddleware;
 use Saucy\Core\Serialisation\TypeMap;
+use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Checkpoints\IlluminateCheckpointStore;
@@ -27,6 +28,8 @@ use Saucy\Core\Subscriptions\Infra\PlaySynchronousProjectorsAfterPersist;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\SubscriptionRegistryFactory;
 use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
+use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
+use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
 use Saucy\MessageStorage\AllStreamMessageRepository;
@@ -53,11 +56,11 @@ final class SaucyServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(
             __DIR__ . '/saucy.php',
-            'saucy'
+            'saucy',
         );
 
         $classes = ConstructFinder::locatedIn(...config('saucy.directories'))
-            ->exclude('*Test.php', '*/Tests/*')
+            ->exclude('*Test.php', '*/Tests/*', '*TestCase.php')
             ->findClassNames(); // @phpstan-ignore-line
 
         // build type map
@@ -65,9 +68,13 @@ final class SaucyServiceProvider extends ServiceProvider
             AggregateRootTypeMapBuilder::make()->create($classes),
             EventTypeMapBuilder::make()->create($classes),
             new TypeMap([
-                AggregateStreamName::class => 'aggregate_stream_name'
-            ])
+                AggregateStreamName::class => 'aggregate_stream_name',
+            ]),
         );
+
+        $this->app->instance(RunAllSubscriptionsInSync::class, new RunAllSubscriptionsInSync(
+            runSync: config('app.env') === 'testing',
+        ));
 
         $this->app->instance(TypeMap::class, $typeMap);
 
@@ -120,15 +127,15 @@ final class SaucyServiceProvider extends ServiceProvider
         $projectorMap = ProjectorMapBuilder::buildForClasses($classes, $typeMap);
 
         $this->app->bind(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
-            ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap)
+            ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
         $this->app->bind(StreamSubscriptionRegistry::class, fn(Application $application) => new StreamSubscriptionRegistry(
-            ...SubscriptionRegistryFactory::buildStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap)
+            ...SubscriptionRegistryFactory::buildStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
         $this->app->bind(SyncStreamSubscriptionRegistry::class, fn(Application $application) => new SyncStreamSubscriptionRegistry(
-            ...SubscriptionRegistryFactory::buildSyncStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap)
+            ...SubscriptionRegistryFactory::buildSyncStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
         $this->app->instance(StreamNameMapper::class, new AggregateRootStreamNameMapper());
@@ -140,9 +147,9 @@ final class SaucyServiceProvider extends ServiceProvider
             new CommandBus(
                 new TaskMapCommandHandler(
                     commandTaskMap: $commandTaskMap,
-                    taskRunner: new TaskRunner($this->app)
+                    taskRunner: new TaskRunner($this->app),
                 ),
-            )
+            ),
         );
 
         $this->app->instance(
@@ -151,8 +158,8 @@ final class SaucyServiceProvider extends ServiceProvider
                 new QueryHandlingMiddleware(
                     new TaskRunner($this->app),
                     QueryHandlerMapBuilder::buildQueryMapForClasses($classes),
-                )
-            )
+                ),
+            ),
         );
     }
 }

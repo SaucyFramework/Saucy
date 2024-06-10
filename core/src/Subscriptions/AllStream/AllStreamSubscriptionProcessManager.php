@@ -7,6 +7,7 @@ use DateTime;
 use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\StartProcessException;
+use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Symfony\Component\Uid\Ulid;
 
@@ -18,6 +19,7 @@ final readonly class AllStreamSubscriptionProcessManager
         private AllStreamSubscriptionRegistry $allStreamSubscriptionRegistry,
         private RunningProcesses $runningProcesses,
         ?DateInterval $defaultProcessTimeout = null,
+        private RunAllSubscriptionsInSync $runSync,
     ) {
         $this->defaultProcessTimeout = $defaultProcessTimeout ?? new DateInterval('PT5M');
     }
@@ -71,7 +73,14 @@ final readonly class AllStreamSubscriptionProcessManager
             return;
         }
 
-        AllStreamPollSubscriptionJob::dispatch($stream->subscriptionId, $processId)->onQueue($stream->streamOptions->queue);
+        if(!$this->runSync->isRunSync()) {
+            AllStreamPollSubscriptionJob::dispatch($stream->subscriptionId, $processId)->onQueue($stream->streamOptions->queue);
+            return;
+        }
+
+        $subscription = $this->allStreamSubscriptionRegistry->get($stream->subscriptionId);
+        $subscription->poll();
+        $this->runningProcesses->stop($processId);
     }
 
 }
