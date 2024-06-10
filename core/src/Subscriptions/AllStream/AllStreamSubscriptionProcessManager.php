@@ -79,8 +79,11 @@ final readonly class AllStreamSubscriptionProcessManager
         }
 
         $subscription = $this->allStreamSubscriptionRegistry->get($stream->subscriptionId);
-        $subscription->poll();
-        $this->runningProcesses->stop($processId);
+        try {
+            $subscription->poll();
+        } finally {
+            $this->runningProcesses->stop($processId);
+        }
     }
 
 }

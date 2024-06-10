@@ -52,8 +52,11 @@ final readonly class StreamSubscriptionProcessManager
         }
 
         $subscription = $this->streamSubscriptionRegistry->get($stream->subscriptionId);
-        $subscription->poll($aggregateStreamName);
-        $this->runningProcesses->stop($processId);
+        try {
+            $subscription->poll($aggregateStreamName);
+        } finally {
+            $this->runningProcesses->stop($processId);
+        }
     }
 
     /**
