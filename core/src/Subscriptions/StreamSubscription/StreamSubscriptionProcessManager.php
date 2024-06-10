@@ -21,8 +21,8 @@ final readonly class StreamSubscriptionProcessManager
     public function __construct(
         private StreamSubscriptionRegistry $streamSubscriptionRegistry,
         private RunningProcesses $runningProcesses,
-        ?DateInterval $defaultProcessTimeout = null,
         private RunAllSubscriptionsInSync $runSync,
+        ?DateInterval $defaultProcessTimeout = null,
     ) {
         $this->defaultProcessTimeout = $defaultProcessTimeout ?? new DateInterval('PT5M');
     }

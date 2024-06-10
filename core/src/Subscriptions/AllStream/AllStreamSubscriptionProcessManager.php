@@ -18,8 +18,8 @@ final readonly class AllStreamSubscriptionProcessManager
     public function __construct(
         private AllStreamSubscriptionRegistry $allStreamSubscriptionRegistry,
         private RunningProcesses $runningProcesses,
-        ?DateInterval $defaultProcessTimeout = null,
         private RunAllSubscriptionsInSync $runSync,
+        ?DateInterval $defaultProcessTimeout = null,
     ) {
         $this->defaultProcessTimeout = $defaultProcessTimeout ?? new DateInterval('PT5M');
     }
