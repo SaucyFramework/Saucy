@@ -34,12 +34,14 @@ final readonly class AllStreamSubscription
             $checkpoint = new Checkpoints\Checkpoint($this->subscriptionId, $this->streamOptions->startingFromPosition);
         }
 
+        $maxPosition = $this->eventReader->maxEventId();
+
         $storedEvents = $this->eventReader->paginate(
             new AllStreamQuery(
                 fromPosition: $checkpoint->position,
                 limit: $this->streamOptions->pageSize,
-                eventTypes: $this->streamOptions->eventTypes
-            )
+                eventTypes: $this->streamOptions->eventTypes,
+            ),
         );
 
         $messageCount = 0;
@@ -59,6 +61,10 @@ final readonly class AllStreamSubscription
             $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
         }
 
+        if($messageCount === 0) {
+            $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
+        }
+
         return $messageCount;
     }
 
@@ -68,7 +74,7 @@ final readonly class AllStreamSubscription
             new SerializationResult(
                 eventType: $storedEvent->eventType,
                 payload: $storedEvent->payloadJson,
-            )
+            ),
         );
 
         /** @var array<string, mixed> $metaData */

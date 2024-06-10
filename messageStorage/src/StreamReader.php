@@ -13,4 +13,6 @@ interface StreamReader
      * @throws UnableToRetrieveMessages
      */
     public function retrieveAllInStreamSinceCheckpoint(StreamName $streamName, int $position): \Generator;
+
+    public function maxStreamPosition(StreamName $streamName): int;
 }

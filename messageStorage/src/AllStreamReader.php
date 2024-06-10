@@ -10,4 +10,6 @@ interface AllStreamReader
      * @return Generator<int, StoredEvent>
      */
     public function paginate(AllStreamQuery $streamQuery): Generator;
+
+    public function maxEventId(): int;
 }

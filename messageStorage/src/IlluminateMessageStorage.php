@@ -161,4 +161,14 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             createdAt: new DateTimeImmutable($row->created_at), // @phpstan-ignore-line
         );
     }
+
+    public function maxEventId(): int
+    {
+        return DB::table($this->tableName)->max('global_position');
+    }
+
+    public function maxStreamPosition(StreamName $streamName): int
+    {
+        return DB::table($this->tableName)->where('stream_name', $streamName->toString())->max('stream_position');
+    }
 }

@@ -38,6 +38,8 @@ final readonly class StreamSubscription
             $checkpoint = new Checkpoints\Checkpoint($streamIdentifier, $this->streamOptions->startingFromPosition);
         }
 
+        $maxPosition = $this->eventReader->maxStreamPosition($streamName);
+
         $storedEvents = $this->eventReader->retrieveAllInStreamSinceCheckpoint($streamName, $checkpoint->position);
 
         $messageCount = 0;
@@ -55,6 +57,10 @@ final readonly class StreamSubscription
 
         if(isset($storedEvent) && $lastCommit !== $storedEvent->streamPosition) {
             $this->checkpointStore->store($checkpoint->withPosition($storedEvent->streamPosition));
+        }
+
+        if($messageCount === 0) {
+            $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
         }
 
         return $messageCount;

@@ -29,4 +29,9 @@ final readonly class HooksMessageStore implements AllStreamMessageRepository, Al
     {
         return $this->inner->paginate($streamQuery);
     }
+
+    public function maxEventId(): int
+    {
+        return $this->inner->maxEventId();
+    }
 }
