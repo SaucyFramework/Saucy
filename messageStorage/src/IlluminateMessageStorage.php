@@ -5,6 +5,7 @@ namespace Saucy\MessageStorage;
 use DateTimeImmutable;
 use Generator;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamName;
@@ -12,7 +13,8 @@ use Saucy\Core\Serialisation\TypeMap;
 use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\Serialization\SerializationResult;
 
-final readonly class IlluminateMessageStorage implements AllStreamMessageRepository, AllStreamReader, StreamReader
+use App\Components\Api\EventData;
+final readonly class IlluminateMessageStorage implements AllStreamMessageRepository, AllStreamReader, StreamReader, ReadEventData
 {
     public function __construct(
         private ConnectionInterface $connection,
@@ -133,6 +135,30 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                 ->where('stream_position', '>', $position)
                 ->orderBy('stream_position')
                 ->cursor()
+        );
+    }
+
+    public function getForEventId(string $messageId): StoredEvent
+    {
+        $row = DB::table('event_store')
+            ->where('message_id', $messageId)
+            ->first();
+
+        if($row === null) {
+            throw new \Exception("Event not found");
+        }
+
+        return new StoredEvent(
+            eventId: $row->message_id, // @phpstan-ignore-line
+            eventType: $row->message_type, // @phpstan-ignore-line
+            streamNameType: $row->stream_name_type, // @phpstan-ignore-line
+            streamType: $row->stream_type, // @phpstan-ignore-line
+            streamName: $row->stream_name, // @phpstan-ignore-line
+            payloadJson: $row->payload, // @phpstan-ignore-line
+            metadataJson: $row->metadata, // @phpstan-ignore-line
+            streamPosition: $row->stream_position, // @phpstan-ignore-line
+            globalPosition: $row->global_position, // @phpstan-ignore-line
+            createdAt: new DateTimeImmutable($row->created_at), // @phpstan-ignore-line
         );
     }
 }

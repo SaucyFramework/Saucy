@@ -2,6 +2,8 @@
 
 namespace Saucy\Core\Framework;
 
+use EventSauce\BackOff\BackOffStrategy;
+use EventSauce\BackOff\ExponentialBackOffStrategy;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\ServiceProvider;
@@ -14,6 +16,7 @@ use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Events\Streams\StreamNameMapper;
 use Saucy\Core\EventSourcing\CommandHandling\EventSourcingCommandMapBuilder;
 use Saucy\Core\EventSourcing\TypeMap\AggregateRootTypeMapBuilder;
+use Saucy\Core\Projections\AwaitProjected;
 use Saucy\Core\Projections\ProjectorMapBuilder;
 use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlerMapBuilder;
@@ -37,6 +40,7 @@ use Saucy\MessageStorage\AllStreamReader;
 use Saucy\MessageStorage\Hooks\Hooks;
 use Saucy\MessageStorage\HooksMessageStore;
 use Saucy\MessageStorage\IlluminateMessageStorage;
+use Saucy\MessageStorage\ReadEventData;
 use Saucy\MessageStorage\Serialization\ConstructingPayloadSerializer;
 use Saucy\MessageStorage\StreamReader;
 use Saucy\Tasks\TaskRunner;
@@ -90,38 +94,28 @@ final class SaucyServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->bind(AllStreamReader::class, function (Application $application) use ($typeMap) {
-            return new IlluminateMessageStorage(
-                $application->make(DatabaseManager::class)->connection(),
-                new ConstructingPayloadSerializer($application->make(TypeMap::class)),
-                $typeMap,
-                'event_store',
-            );
-        });
+        $messageRepository = new IlluminateMessageStorage(
+            connection: $this->app->make(DatabaseManager::class)->connection(),
+            eventSerializer: new ConstructingPayloadSerializer($this->app->make(TypeMap::class)),
+            streamNameTypeMap: $typeMap,
+            tableName: 'event_store',
+        );
 
-        $this->app->bind(StreamReader::class, function (Application $application) use ($typeMap) {
-            return new IlluminateMessageStorage(
-                $application->make(DatabaseManager::class)->connection(),
-                new ConstructingPayloadSerializer($application->make(TypeMap::class)),
-                $typeMap,
-                'event_store',
-            );
-        });
+        $this->app->bind(ReadEventData::class, fn() => $messageRepository);
+        $this->app->bind(AllStreamReader::class, fn() => $messageRepository);
+        $this->app->bind(StreamReader::class, fn() => $messageRepository);
 
-        $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($typeMap) {
+        $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($messageRepository) {
             return new HooksMessageStore(
-                new IlluminateMessageStorage(
-                    $application->make(DatabaseManager::class)->connection(),
-                    new ConstructingPayloadSerializer($application->make(TypeMap::class)),
-                    $typeMap,
-                    'event_store',
-                ),
+                $messageRepository,
                 new Hooks(
                     $application->make(TriggerSubscriptionProcessesAfterPersist::class),
                     $application->make(PlaySynchronousProjectorsAfterPersist::class),
                 ),
             );
         });
+
+        $this->app->when(AwaitProjected::class)->needs(BackOffStrategy::class)->give(fn() => new ExponentialBackOffStrategy(500, 10000, 50000, 2));
 
         // auto wire stream subscriptions
         $projectorMap = ProjectorMapBuilder::buildForClasses($classes, $typeMap);
