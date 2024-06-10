@@ -35,6 +35,8 @@ use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
+use Saucy\Core\Tracing\TracePersistedEventsHook;
+use Saucy\Core\Tracing\Tracer;
 use Saucy\MessageStorage\AllStreamMessageRepository;
 use Saucy\MessageStorage\AllStreamReader;
 use Saucy\MessageStorage\Hooks\Hooks;
@@ -82,6 +84,8 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->instance(TypeMap::class, $typeMap);
 
+        $this->app->singleton(Tracer::class, fn() => new Tracer());
+
         $this->app->bind(RunningProcesses::class, function (Application $application) {
             return new IlluminateRunningProcesses(
                 $application->make(DatabaseManager::class)->connection(),
@@ -111,6 +115,7 @@ final class SaucyServiceProvider extends ServiceProvider
                 new Hooks(
                     $application->make(TriggerSubscriptionProcessesAfterPersist::class),
                     $application->make(PlaySynchronousProjectorsAfterPersist::class),
+                    $application->make(TracePersistedEventsHook::class),
                 ),
             );
         });

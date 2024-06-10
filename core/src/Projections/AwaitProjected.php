@@ -3,7 +3,6 @@
 namespace Saucy\Core\Projections;
 
 use EventSauce\BackOff\BackOffStrategy;
-use Illuminate\Support\Facades\Log;
 use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
