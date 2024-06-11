@@ -2,12 +2,15 @@
 
 namespace Saucy\Core\Subscriptions\AllStream;
 
+use DateTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
+use Saucy\Core\Subscriptions\Infra\StartProcessException;
+use Symfony\Component\Uid\Ulid;
 
 final class AllStreamPollSubscriptionJob implements ShouldQueue
 {
@@ -35,7 +38,19 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
     {
         if(!$runningProcesses->isActive($this->subscriptionId, $this->processId)) {
             $runningProcesses->stop($this->processId);
-            return;
+            // start new job
+            $newProcessId = Ulid::generate();
+            try {
+                $runningProcesses->start(
+                    $this->subscriptionId,
+                    $newProcessId,
+                    (new DateTime('now'))->add($subscription->streamOptions->processTimeoutInSeconds !== null ? new \DateInterval("PT{$subscription->streamOptions->processTimeoutInSeconds}S") : new \DateInterval('PT5M')),
+                );
+            } catch (StartProcessException $exception) {
+                // process already running, stop execution
+                return;
+            }
+            self::dispatch($this->subscriptionId, $newProcessId);
         }
 
         $messagesHandled = $subscription->poll();

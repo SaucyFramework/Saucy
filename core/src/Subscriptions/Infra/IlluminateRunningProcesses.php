@@ -2,9 +2,7 @@
 
 namespace Saucy\Core\Subscriptions\Infra;
 
-use DateInterval;
 use Illuminate\Database\ConnectionInterface;
-use Illuminate\Support\Facades\Log;
 use PDOException;
 
 final readonly class IlluminateRunningProcesses implements RunningProcesses
