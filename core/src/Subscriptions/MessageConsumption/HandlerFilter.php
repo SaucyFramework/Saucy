@@ -20,7 +20,7 @@ final readonly class HandlerFilter implements FilterThatProcessesInBatches
 
     public function handlesBatches(): bool
     {
-        return method_exists($this->messageConsumer, 'handleBatch');
+        return method_exists($this->messageConsumer, 'handleBatch') && $this->messageConsumer->handleBatch();
     }
 
     public function beforeHandlingBatch(): void
