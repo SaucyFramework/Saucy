@@ -2,7 +2,7 @@
 
 namespace Saucy\Core\Subscriptions\MessageConsumption;
 
-final readonly class HandlerFilter implements ConsumeFilter
+final readonly class HandlerFilter implements FilterThatProcessesInBatches
 {
     public function __construct(
         private MessageConsumer $messageConsumer
@@ -16,5 +16,24 @@ final readonly class HandlerFilter implements ConsumeFilter
     public function handles(string $className): bool
     {
         return $this->messageConsumer instanceof $className;
+    }
+
+    public function handlesBatches(): bool
+    {
+        return method_exists($this->messageConsumer, 'handleBatch');
+    }
+
+    public function beforeHandlingBatch(): void
+    {
+        if (method_exists($this->messageConsumer, 'beforeHandlingBatch')) {
+            $this->messageConsumer->beforeHandlingBatch();
+        }
+    }
+
+    public function afterHandlingBatch(): void
+    {
+        if (method_exists($this->messageConsumer, 'afterHandlingBatch')) {
+            $this->messageConsumer->afterHandlingBatch();
+        }
     }
 }
