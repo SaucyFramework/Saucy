@@ -47,14 +47,28 @@ final readonly class AllStreamSubscription
         $messageCount = 0;
         $lastCommit = 0;
 
+        $processBatches = $this->consumePipe->canHandleBatches();
+        if($processBatches) {
+            $this->consumePipe->beforeHandlingBatch();
+        }
+
         foreach ($storedEvents as $storedEvent) {
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
             $messageCount += 1;
+
+            if($processBatches) {
+                continue;
+            }
+
             // if batch size reached, commit
             if($messageCount % $this->streamOptions->commitBatchSize === 0) {
                 $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
                 $lastCommit = $storedEvent->globalPosition;
             }
+        }
+
+        if($processBatches) {
+            $this->consumePipe->afterHandlingBatch();
         }
 
         if(isset($storedEvent) && $lastCommit !== $storedEvent->globalPosition) {

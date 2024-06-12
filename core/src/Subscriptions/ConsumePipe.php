@@ -22,10 +22,40 @@ final readonly class ConsumePipe
         $this->filters = $filters;
     }
 
+    public function canHandleBatches(): bool
+    {
+        foreach ($this->filters as $filter) {
+            if(method_exists($filter, 'handlesBatches')) {
+                return $filter->handlesBatches();
+            }
+        }
+        return false;
+    }
+
+    public function beforeHandlingBatch(): void
+    {
+        // call beforeBatch on all filters
+        foreach ($this->filters as $filter) {
+            if(method_exists($filter, 'beforeHandlingBatch')) {
+                $filter->beforeHandlingBatch();
+            }
+        }
+    }
+
     public function handle(MessageConsumeContext $context): mixed
     {
         return ($this->filterChain)($context);
     }
+
+    public function afterHandlingBatch(): void
+    {
+        foreach ($this->filters as $filter) {
+            if(method_exists($filter, 'afterHandlingBatch')) {
+                $filter->afterHandlingBatch();
+            }
+        }
+    }
+
 
     public function handles(string $className): bool
     {
