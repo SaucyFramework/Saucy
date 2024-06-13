@@ -66,7 +66,7 @@ final class SaucyServiceProvider extends ServiceProvider
         );
 
         $classes = ConstructFinder::locatedIn(...config('saucy.directories'))
-            ->exclude('*Test.php', '*/Tests/*', '*TestCase.php')
+            ->exclude(...config('saucy.exclude_files', ['*Test.php', '*/Tests/*', '*TestCase.php']))
             ->findClassNames(); // @phpstan-ignore-line
 
         // build type map

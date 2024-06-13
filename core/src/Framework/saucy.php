@@ -6,6 +6,9 @@ return [
         __DIR__ . '/../app'
     ],
 
+    'exclude_files' => ['*Test.php', '*/Tests/*', '*TestCase.php'],
+
+
     'all_stream_projection' => [
         'timeout' => 20, // seconds,
         'queue' => 'projections',
