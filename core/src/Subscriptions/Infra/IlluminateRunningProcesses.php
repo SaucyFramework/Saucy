@@ -45,6 +45,18 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
             ->exists();
     }
 
+    public function timeLeft(string $processId): int
+    {
+        $row = $this->connection->table($this->tableName)
+            ->where('process_id', $processId)
+            ->first();
+
+        if($row === null) {
+            return 0;
+        }
+        return (new \DateTime($row['expires_at']))->getTimestamp() - time();
+    }
+
     public function stop(string $processId): void
     {
         $this->connection->table($this->tableName)

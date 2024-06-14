@@ -26,8 +26,9 @@ final readonly class AllStreamSubscription
         public TypeMap $streamNameTypeMap,
     ) {}
 
-    public function poll(): int
+    public function poll(int $timeoutInSeconds = 100): int
     {
+        $startTime = time();
         try {
             $checkpoint = $this->checkpointStore->get($this->subscriptionId);
         } catch (Checkpoints\CheckpointNotFound $e) {
@@ -53,6 +54,9 @@ final readonly class AllStreamSubscription
         }
 
         foreach ($storedEvents as $storedEvent) {
+            if(time() - $startTime >= $timeoutInSeconds) {
+                break;
+            }
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
             $messageCount += 1;
 

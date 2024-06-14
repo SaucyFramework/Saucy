@@ -38,22 +38,19 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
     {
         if(!$runningProcesses->isActive($this->subscriptionId, $this->processId)) {
             $runningProcesses->stop($this->processId);
-            // start new job
-            $newProcessId = Ulid::generate();
-            try {
-                $runningProcesses->start(
-                    $this->subscriptionId,
-                    $newProcessId,
-                    (new DateTime('now'))->add($subscription->streamOptions->processTimeoutInSeconds !== null ? new \DateInterval("PT{$subscription->streamOptions->processTimeoutInSeconds}S") : new \DateInterval('PT5M')),
-                );
-            } catch (StartProcessException $exception) {
-                // process already running, stop execution
-                return;
-            }
-            self::dispatch($this->subscriptionId, $newProcessId);
+            $this->startNewProcess($subscription, $runningProcesses);
+            return;
         }
 
-        $messagesHandled = $subscription->poll();
+        $timeLeft = $runningProcesses->timeLeft($this->processId) - 5;
+
+        if($timeLeft < 0) {
+            $runningProcesses->stop($this->processId);
+            $this->startNewProcess($subscription, $runningProcesses);
+            return;
+        }
+
+        $messagesHandled = $subscription->poll($timeLeft);
 
         if($messagesHandled === 0) {
 
@@ -72,5 +69,22 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         }
 
         $this->runSubscription($subscription, $runningProcesses);
+    }
+
+    private function startNewProcess(AllStreamSubscription $subscription, RunningProcesses $runningProcesses)
+    {
+        // start new job
+        $newProcessId = Ulid::generate();
+        try {
+            $runningProcesses->start(
+                subscriptionId: $this->subscriptionId,
+                processId: $newProcessId,
+                expiresAt: (new DateTime('now'))->add($subscription->streamOptions->processTimeoutInSeconds !== null ? new \DateInterval("PT{$subscription->streamOptions->processTimeoutInSeconds}S") : new \DateInterval('PT5M')),
+            );
+        } catch (StartProcessException $exception) {
+            // process already running, stop execution
+            return;
+        }
+        self::dispatch($this->subscriptionId, $newProcessId);
     }
 }

@@ -12,5 +12,7 @@ interface RunningProcesses
 
     public function isActive(string $subscriptionId, ?string $processId = null): bool;
 
+    public function timeLeft(string $processId): int;
+
     public function stop(string $processId): void;
 }
