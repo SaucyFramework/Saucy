@@ -7,6 +7,7 @@ use EventSauce\BackOff\BackOffStrategy;
 use EventSauce\BackOff\LinearBackOffStrategy;
 use EventSauce\EventSourcing\AggregateRoot;
 use EventSauce\EventSourcing\AggregateRootId;
+use EventSauce\EventSourcing\UnableToPersistMessages;
 use Saucy\Core\EventSourcing\AggregateStore;
 
 final readonly class EventSourcingCommandHandler
@@ -50,7 +51,7 @@ final readonly class EventSourcingCommandHandler
         /** @var class-string<AggregateRoot<AggregateRootId>> $aggregateRootClass */
         $aggregateRootClass = $metaData[self::AGGREGATE_ROOT_CLASS];
 
-        $runner = new BackOffRunner($this->backOffStrategy);
+        $runner = new BackOffRunner($this->backOffStrategy, UnableToPersistMessages::class);
         $runner->run(function () use ($aggregateRootClass, $aggregateRootId, $message, $metaData) {
             $aggregate = $this->eventSourcingRepository->retrieve($aggregateRootClass, $aggregateRootId);
             try {
