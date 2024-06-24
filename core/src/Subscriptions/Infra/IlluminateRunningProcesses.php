@@ -54,7 +54,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         if($row === null) {
             return 0;
         }
-        return (new \DateTime($row['expires_at']))->getTimestamp() - time();
+        return (new \DateTime($row->expires_at))->getTimestamp() - time();
     }
 
     public function stop(string $processId): void
