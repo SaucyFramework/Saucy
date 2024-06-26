@@ -55,6 +55,11 @@ final readonly class AllStreamSubscriptionProcessManager
         }
     }
 
+    public function startProcess(string $name): void
+    {
+        $this->startStreamIfNotRunning($this->allStreamSubscriptionRegistry->get($name));
+    }
+
     private function startStreamIfNotRunning(AllStreamSubscription $stream): void
     {
         if($this->runningProcesses->isActive($stream->subscriptionId)) {
