@@ -48,6 +48,8 @@ final readonly class AllStreamSubscription
         $messageCount = 0;
         $lastCommit = 0;
 
+        $queueTimedOut = false;
+
         $processBatches = $this->consumePipe->canHandleBatches();
         if($processBatches) {
             $this->consumePipe->beforeHandlingBatch();
@@ -55,6 +57,7 @@ final readonly class AllStreamSubscription
 
         foreach ($storedEvents as $storedEvent) {
             if(time() - $startTime >= $timeoutInSeconds) {
+                $queueTimedOut = true;
                 break;
             }
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
@@ -79,7 +82,7 @@ final readonly class AllStreamSubscription
             $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
         }
 
-        if($messageCount === 0) {
+        if($messageCount === 0 && !$queueTimedOut) {
             $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
         }
 
