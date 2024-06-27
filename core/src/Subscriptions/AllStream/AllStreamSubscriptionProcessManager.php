@@ -4,6 +4,9 @@ namespace Saucy\Core\Subscriptions\AllStream;
 
 use DateInterval;
 use DateTime;
+use EventSauce\BackOff\BackOffRunner;
+use EventSauce\BackOff\LinearBackOffStrategy;
+use EventSauce\EventSourcing\UnableToPersistMessages;
 use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\StartProcessException;
@@ -58,6 +61,32 @@ final readonly class AllStreamSubscriptionProcessManager
     public function startProcess(string $name): void
     {
         $this->startStreamIfNotRunning($this->allStreamSubscriptionRegistry->get($name));
+    }
+
+    public function replaySubscription(string $name): void
+    {
+        $stream = $this->allStreamSubscriptionRegistry->get($name);
+        // pause other triggers of this process
+        $this->runningProcesses->pause($stream->subscriptionId, 'paused for replay');
+
+        // wait to obtain lock
+        $processId = Ulid::generate();
+        $runner = new BackOffRunner(new LinearBackOffStrategy(500, 100), StartProcessException::class);
+        $runner->run(function () use ($stream, $processId) {
+            $this->runningProcesses->start(
+                subscriptionId: $stream->subscriptionId,
+                processId: $processId,
+                expiresAt: (new DateTime('now'))->add(new DateInterval("PT15M")),
+                ignorePaused: true,
+            );
+        });
+
+        $stream->prepareForReplay();
+
+        $this->runningProcesses->resume($stream->subscriptionId);
+        $this->runningProcesses->stop($processId);
+
+        $this->startStreamIfNotRunning($stream);
     }
 
     private function startStreamIfNotRunning(AllStreamSubscription $stream): void

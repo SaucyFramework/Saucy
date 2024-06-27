@@ -3,6 +3,7 @@
 namespace Saucy\Core\Subscriptions\Infra;
 
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
 use PDOException;
 
 final readonly class IlluminateRunningProcesses implements RunningProcesses
@@ -10,19 +11,30 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
     public function __construct(
         private ConnectionInterface $connection,
         private string $tableName = 'running_processes',
+        private string $pausedTableName = 'paused_subscriptions',
     ) {}
 
 
     /**
      * @throws StartProcessException
      */
-    public function start(string $subscriptionId, string $processId, \DateTime $expiresAt): void
+    public function start(string $subscriptionId, string $processId, \DateTime $expiresAt, bool $ignorePaused = false): void
     {
         // cleanup process when running longer than x seconds
         $this->connection->table($this->tableName)
             ->where('subscription_id', $subscriptionId)
             ->where('expires_at', '<', (new \DateTime('now'))->sub(new \DateInterval('PT30S'))->format('Y-m-d H:i:s'))
             ->delete();
+
+        if(!$ignorePaused) {
+            $paused = $this->connection->table($this->pausedTableName)
+                ->where('subscription_id', $subscriptionId)
+                ->first();
+
+            if($paused !== null) {
+                throw StartProcessException::subscriptionIsPaused($paused->reason);
+            }
+        }
 
         try {
             $this->connection->table($this->tableName)->insert([
@@ -33,11 +45,14 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         } catch (PDOException $e) {
             throw StartProcessException::cannotGetLockForProcess();
         }
-
     }
 
     public function isActive(string $subscriptionId, ?string $processId = null): bool
     {
+        if($this->isPaused($subscriptionId)) {
+            return false;
+        }
+
         return $this->connection->table($this->tableName)
             ->where('subscription_id', $subscriptionId)
             ->when($processId !== null, fn($query) => $query->where('process_id', $processId))
@@ -54,6 +69,11 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         if($row === null) {
             return 0;
         }
+
+        if ($this->isPaused($row->subscription_id)) {
+            return 0;
+        }
+
         return (new \DateTime($row->expires_at))->getTimestamp() - time();
     }
 
@@ -62,5 +82,58 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         $this->connection->table($this->tableName)
             ->where('process_id', $processId)
             ->delete();
+    }
+
+    /**
+     * @return RunningProcess[]
+     */
+    public function all(): array
+    {
+        // get all paused rows
+        $paused = $this->connection->table($this->pausedTableName)->get();
+        $allSubscriptions = $this->connection->table($this->tableName)->get();
+
+        // map and set paused status
+        return $allSubscriptions->map(function ($row) use ($paused) {
+            return new RunningProcess(
+                subscriptionId: $row->subscription_id,
+                processId: $row->process_id,
+                expiresAt: new \DateTime($row->expires_at),
+                paused: $paused->contains('subscription_id', $row->subscription_id),
+            );
+        })->toArray();
+    }
+
+    public function pause(string $subscriptionId, ?string $reason = null): void
+    {
+        $this->connection->table($this->pausedTableName)
+            ->insert([
+                'subscription_id' => $subscriptionId,
+                'reason' => $reason,
+            ]);
+    }
+
+    public function resume(string $subscriptionId): void
+    {
+        $this->connection->table($this->pausedTableName)
+            ->where('subscription_id', $subscriptionId)
+            ->delete();
+    }
+
+    public function reportStatus(string $processId, string $status): void
+    {
+        $this->connection->table($this->tableName)
+            ->where('process_id', $processId)
+            ->update([
+                'status' => $status,
+                'last_status_change_at' => (new \DateTime('now'))->format('Y-m-d H:i:s'),
+            ]);
+    }
+
+    public function isPaused(string $subscriptionId): bool
+    {
+        return $this->connection->table($this->pausedTableName)
+            ->where('subscription_id', $subscriptionId)
+            ->exists();
     }
 }

@@ -10,4 +10,9 @@ final class StartProcessException extends Exception
     {
         return new self("could not obtain lock for process");
     }
+
+    public static function subscriptionIsPaused(?string $reason = null): self
+    {
+        return new self("subscription is paused: " . $reason);
+    }
 }

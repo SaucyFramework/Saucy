@@ -80,4 +80,13 @@ final readonly class ConsumePipe
 
         return $lastCallable;
     }
+
+    public function prepareReplay(): void
+    {
+        foreach ($this->filters as $filter) {
+            if(method_exists($filter, 'prepareReplay')) {
+                $filter->prepareReplay();
+            }
+        }
+    }
 }

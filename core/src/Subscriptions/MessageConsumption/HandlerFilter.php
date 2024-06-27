@@ -36,4 +36,11 @@ final readonly class HandlerFilter implements FilterThatProcessesInBatches
             $this->messageConsumer->afterHandlingBatch();
         }
     }
+
+    public function prepareReplay(): void
+    {
+        if (method_exists($this->messageConsumer, 'prepareReplay')) {
+            $this->messageConsumer->prepareReplay();
+        }
+    }
 }

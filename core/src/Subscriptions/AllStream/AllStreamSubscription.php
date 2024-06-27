@@ -89,6 +89,13 @@ final readonly class AllStreamSubscription
         return $messageCount;
     }
 
+    public function prepareForReplay(): void
+    {
+        $this->consumePipe->prepareReplay();
+        $checkpoint = new Checkpoints\Checkpoint($this->subscriptionId, $this->streamOptions->startingFromPosition);
+        $this->checkpointStore->store($checkpoint);
+    }
+
     private function storedMessageToContext(StoredEvent $storedEvent): MessageConsumeContext
     {
         $payload = $this->eventSerializer->deserialize(
@@ -115,4 +122,6 @@ final readonly class AllStreamSubscription
             globalPosition: $storedEvent->globalPosition,
         );
     }
+
+
 }

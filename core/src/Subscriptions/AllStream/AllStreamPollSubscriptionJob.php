@@ -37,6 +37,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
     private function runSubscription(AllStreamSubscription $subscription, RunningProcesses $runningProcesses): void
     {
         if(!$runningProcesses->isActive($this->subscriptionId, $this->processId)) {
+            $runningProcesses->reportStatus($this->processId, 'stopping');
             $runningProcesses->stop($this->processId);
             $this->startNewProcess($subscription, $runningProcesses);
             return;
@@ -45,12 +46,17 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         $timeLeft = $runningProcesses->timeLeft($this->processId) - 5;
 
         if($timeLeft < 0) {
+            $runningProcesses->reportStatus($this->processId, 'stopping');
             $runningProcesses->stop($this->processId);
             $this->startNewProcess($subscription, $runningProcesses);
             return;
         }
 
+        $runningProcesses->reportStatus($this->processId, 'starting poll');
+
         $messagesHandled = $subscription->poll($timeLeft);
+
+        $runningProcesses->reportStatus($this->processId, 'finished poll with ' . $messagesHandled . ' messages handled');
 
         if($messagesHandled === 0) {
 
@@ -59,6 +65,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
             }
 
             if(time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
+                $runningProcesses->reportStatus($this->processId, 'stopping');
                 $runningProcesses->stop($this->processId);
                 return;
             }
@@ -71,7 +78,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         $this->runSubscription($subscription, $runningProcesses);
     }
 
-    private function startNewProcess(AllStreamSubscription $subscription, RunningProcesses $runningProcesses)
+    private function startNewProcess(AllStreamSubscription $subscription, RunningProcesses $runningProcesses): void
     {
         // start new job
         $newProcessId = Ulid::generate();
