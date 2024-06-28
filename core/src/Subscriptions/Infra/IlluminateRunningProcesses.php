@@ -4,6 +4,7 @@ namespace Saucy\Core\Subscriptions\Infra;
 
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PDOException;
 
 final readonly class IlluminateRunningProcesses implements RunningProcesses
@@ -94,14 +95,27 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         $allSubscriptions = $this->connection->table($this->tableName)->get();
 
         // map and set paused status
-        return $allSubscriptions->map(function ($row) use ($paused) {
-            return new RunningProcess(
+        return $allSubscriptions->mapWithKeys(function ($row) use ($paused) {
+            return [$row->subscription_id =>  new RunningProcess(
                 subscriptionId: $row->subscription_id,
                 processId: $row->process_id,
                 expiresAt: new \DateTime($row->expires_at),
                 paused: $paused->contains('subscription_id', $row->subscription_id),
-            );
-        })->toArray();
+                pausedReason: $paused->firstWhere('subscription_id', $row->subscription_id)?->reason,
+                status: $row->status,
+                lastStatusAt: $row->last_status_change_at ? new \DateTime($row->last_status_change_at) : null,
+            )];
+        })->merge($paused->mapWithKeys(function ($row) {
+            return [$row->subscription_id =>  new RunningProcess(
+                subscriptionId: $row->subscription_id,
+                processId: 'paused',
+                expiresAt: new \DateTime('now'),
+                paused: true,
+                pausedReason: $row->reason,
+                status: 'paused',
+                lastStatusAt: null,
+            )];
+        }))->toArray();
     }
 
     public function pause(string $subscriptionId, ?string $reason = null): void

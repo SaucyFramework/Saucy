@@ -52,11 +52,9 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
             return;
         }
 
-        $runningProcesses->reportStatus($this->processId, 'starting poll');
+        $runningProcesses->reportStatus($this->processId, 'running');
 
         $messagesHandled = $subscription->poll($timeLeft);
-
-        $runningProcesses->reportStatus($this->processId, 'finished poll with ' . $messagesHandled . ' messages handled');
 
         if($messagesHandled === 0) {
 

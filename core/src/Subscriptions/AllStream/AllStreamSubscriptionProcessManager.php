@@ -7,6 +7,7 @@ use DateTime;
 use EventSauce\BackOff\BackOffRunner;
 use EventSauce\BackOff\LinearBackOffStrategy;
 use EventSauce\EventSourcing\UnableToPersistMessages;
+use Illuminate\Support\Facades\Log;
 use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\StartProcessException;
@@ -63,11 +64,25 @@ final readonly class AllStreamSubscriptionProcessManager
         $this->startStreamIfNotRunning($this->allStreamSubscriptionRegistry->get($name));
     }
 
+    public function pause(string $name): void
+    {
+        $stream = $this->allStreamSubscriptionRegistry->get($name);
+        $this->runningProcesses->pause($stream->subscriptionId, 'paused');
+    }
+
+    public function resume(string $name): void
+    {
+        $stream = $this->allStreamSubscriptionRegistry->get($name);
+        $this->runningProcesses->resume($stream->subscriptionId);
+    }
+
     public function replaySubscription(string $name): void
     {
+        Log::notice('Replaying subscription', ['name' => $name]);
         $stream = $this->allStreamSubscriptionRegistry->get($name);
         // pause other triggers of this process
         $this->runningProcesses->pause($stream->subscriptionId, 'paused for replay');
+        Log::notice('Paused subscription', ['name' => $name]);
 
         // wait to obtain lock
         $processId = Ulid::generate();
@@ -82,7 +97,6 @@ final readonly class AllStreamSubscriptionProcessManager
         });
 
         $stream->prepareForReplay();
-
         $this->runningProcesses->resume($stream->subscriptionId);
         $this->runningProcesses->stop($processId);
 

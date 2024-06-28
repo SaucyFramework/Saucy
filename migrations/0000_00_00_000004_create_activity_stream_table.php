@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('paused_subscriptions', function (Blueprint $table) {
-            $table->string('subscription_id')->primary();
-            $table->string('reason')->nullable();
-        });
-
-        Schema::table('running_processes', function (Blueprint $table) {
-            $table->string('status')->nullable();
-            $table->dateTime('last_status_change_at')->nullable();
+        Schema::create('subscription_activity_stream_log', function (Blueprint $table) {
+            $table->id();
+            $table->string('stream_id');
+            $table->string('type');
+            $table->string('message');
+            $table->dateTime('occurred_at');
+            $table->json('data');
         });
     }
 

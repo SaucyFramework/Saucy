@@ -7,6 +7,8 @@ use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\ConsumePipe;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
+use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
+use Saucy\Core\Subscriptions\Metrics\SubscriptionActivity;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\MessageStorage\AllStreamQuery;
 use Saucy\MessageStorage\AllStreamReader;
@@ -24,10 +26,13 @@ final readonly class AllStreamSubscription
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,
         public TypeMap $streamNameTypeMap,
+        public ActivityStreamLogger $activityStreamLogger,
     ) {}
 
     public function poll(int $timeoutInSeconds = 100): int
     {
+        $log = [];
+        $this->appendToActivity($log, 'started_poll', 'started poll');
         $startTime = time();
         try {
             $checkpoint = $this->checkpointStore->get($this->subscriptionId);
@@ -37,6 +42,12 @@ final readonly class AllStreamSubscription
 
         $maxPosition = $this->eventReader->maxEventId();
 
+        $this->appendToActivity($log, 'loading_events', 'loading events', [
+            'fromPosition' =>  $checkpoint->position,
+            'limit' =>  $this->streamOptions->pageSize,
+            'eventTypes' =>  $this->streamOptions->eventTypes,
+        ]);
+
         $storedEvents = $this->eventReader->paginate(
             new AllStreamQuery(
                 fromPosition: $checkpoint->position,
@@ -44,6 +55,8 @@ final readonly class AllStreamSubscription
                 eventTypes: $this->streamOptions->eventTypes,
             ),
         );
+
+        $this->appendToActivity($log, 'loaded_events', 'loaded events', []);
 
         $messageCount = 0;
         $lastCommit = 0;
@@ -55,13 +68,26 @@ final readonly class AllStreamSubscription
             $this->consumePipe->beforeHandlingBatch();
         }
 
+        $this->storeLog($log);
+
         foreach ($storedEvents as $storedEvent) {
             if(time() - $startTime >= $timeoutInSeconds) {
                 $queueTimedOut = true;
+                $this->appendToActivity($log, 'queue_timeout', 'queue timeout', []);
                 break;
             }
+            $startTimeHandleMessage = microtime(true);
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
             $messageCount += 1;
+
+            $this->appendToActivity($log, 'handled_message', 'handled message', [
+                'time_to_handle' => microtime(true) - $startTimeHandleMessage,
+                'message_id' => $storedEvent->eventId,
+                'type' => $storedEvent->eventType,
+                'stream_position' => $storedEvent->streamPosition,
+                'global_position' => $storedEvent->globalPosition,
+                'count' => $messageCount,
+            ]);
 
             if($processBatches) {
                 continue;
@@ -69,7 +95,11 @@ final readonly class AllStreamSubscription
 
             // if batch size reached, commit
             if($messageCount % $this->streamOptions->commitBatchSize === 0) {
+                $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
+                    'position' => $storedEvent->globalPosition,
+                ]);
                 $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
+                $this->storeLog($log);
                 $lastCommit = $storedEvent->globalPosition;
             }
         }
@@ -79,21 +109,35 @@ final readonly class AllStreamSubscription
         }
 
         if(isset($storedEvent) && $lastCommit !== $storedEvent->globalPosition) {
+            $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, end of loop', [
+                'position' => $storedEvent->globalPosition,
+            ]);
             $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
         }
 
         if($messageCount === 0 && !$queueTimedOut) {
+            $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, 0 handled', [
+                'position' => $maxPosition,
+            ]);
             $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
         }
 
+        $this->storeLog($log);
         return $messageCount;
     }
 
     public function prepareForReplay(): void
     {
+        $log = [];
+        $this->appendToActivity($log, 'prepare_replay', 'prepare replay');
         $this->consumePipe->prepareReplay();
+        $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
+            'position' => $this->streamOptions->startingFromPosition,
+            'reason' => 'replay',
+        ]);
         $checkpoint = new Checkpoints\Checkpoint($this->subscriptionId, $this->streamOptions->startingFromPosition);
         $this->checkpointStore->store($checkpoint);
+        $this->storeLog($log);
     }
 
     private function storedMessageToContext(StoredEvent $storedEvent): MessageConsumeContext
@@ -121,6 +165,23 @@ final readonly class AllStreamSubscription
             streamPosition: $storedEvent->streamPosition,
             globalPosition: $storedEvent->globalPosition,
         );
+    }
+
+    private function appendToActivity(array &$log, string $type, string $message, array $data = []): void
+    {
+        $log[] = new SubscriptionActivity(
+            streamId: $this->subscriptionId,
+            type: $type,
+            message: $message,
+            occurredAt: new \DateTime('now'),
+            data: $data,
+        );
+    }
+
+    private function storeLog(array &$log): void
+    {
+        $this->activityStreamLogger->log(...$log);
+        $log = [];
     }
 
 

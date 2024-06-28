@@ -13,6 +13,7 @@ use Saucy\Core\Subscriptions\AllStream\AllStreamSubscription;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\ConsumePipe;
 use Saucy\Core\Subscriptions\MessageConsumption\HandlerFilter;
+use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscription;
 use Saucy\MessageStorage\AllStreamReader;
@@ -76,6 +77,7 @@ final readonly class SubscriptionRegistryFactory
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $application->make(CheckpointStore::class),
             streamNameTypeMap: $typeMap,
+            activityStreamLogger: $application->make(ActivityStreamLogger::class),
         );
     }
 

@@ -8,6 +8,7 @@ use EventSauce\BackOff\LinearBackOffStrategy;
 use EventSauce\EventSourcing\AggregateRoot;
 use EventSauce\EventSourcing\AggregateRootId;
 use EventSauce\EventSourcing\UnableToPersistMessages;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Saucy\Core\EventSourcing\AggregateStore;
 
 final readonly class EventSourcingCommandHandler
@@ -51,19 +52,39 @@ final readonly class EventSourcingCommandHandler
         /** @var class-string<AggregateRoot<AggregateRootId>> $aggregateRootClass */
         $aggregateRootClass = $metaData[self::AGGREGATE_ROOT_CLASS];
 
-        $runner = new BackOffRunner($this->backOffStrategy, UnableToPersistMessages::class);
-        $runner->run(function () use ($aggregateRootClass, $aggregateRootId, $message, $metaData) {
+        $tries = 0;
+
+        while(true) {
             $aggregate = $this->eventSourcingRepository->retrieve($aggregateRootClass, $aggregateRootId);
             try {
-                if(array_key_exists(self::COMMAND_ARGUMENT_NAME, $metaData)) {
-                    app()->call([$aggregate, $metaData[self::AGGREGATE_METHOD]], [$metaData[self::COMMAND_ARGUMENT_NAME] => $message]);
-                } else {
-                    $aggregate->{$metaData[self::AGGREGATE_METHOD]}($message);
+                try {
+                    if (array_key_exists(self::COMMAND_ARGUMENT_NAME, $metaData)) {
+                        app()->call([$aggregate, $metaData[self::AGGREGATE_METHOD]], [$metaData[self::COMMAND_ARGUMENT_NAME] => $message]);
+                    } else {
+                        $aggregate->{$metaData[self::AGGREGATE_METHOD]}($message);
+                    }
+                } finally {
+                    $this->eventSourcingRepository->persist($aggregate);
                 }
-            } finally {
-                $this->eventSourcingRepository->persist($aggregate);
+                return;
+            } catch (UnableToPersistMessages | UniqueConstraintViolationException $e) {
+                $this->backOffStrategy->backOff(++$tries, $e);
             }
-        });
+        }
+
+        //        $runner = new BackOffRunner($this->backOffStrategy, UnableToPersistMessages::class);
+        //        $runner->run(function () use ($aggregateRootClass, $aggregateRootId, $message, $metaData) {
+        //            $aggregate = $this->eventSourcingRepository->retrieve($aggregateRootClass, $aggregateRootId);
+        //            try {
+        //                if(array_key_exists(self::COMMAND_ARGUMENT_NAME, $metaData)) {
+        //                    app()->call([$aggregate, $metaData[self::AGGREGATE_METHOD]], [$metaData[self::COMMAND_ARGUMENT_NAME] => $message]);
+        //                } else {
+        //                    $aggregate->{$metaData[self::AGGREGATE_METHOD]}($message);
+        //                }
+        //            } finally {
+        //                $this->eventSourcingRepository->persist($aggregate);
+        //            }
+        //        });
 
     }
 

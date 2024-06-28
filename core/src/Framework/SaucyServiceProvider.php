@@ -31,6 +31,8 @@ use Saucy\Core\Subscriptions\Infra\PlaySynchronousProjectorsAfterPersist;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\SubscriptionRegistryFactory;
 use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
+use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
+use Saucy\Core\Subscriptions\Metrics\IlluminateActivityStreamLogger;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
@@ -96,6 +98,10 @@ final class SaucyServiceProvider extends ServiceProvider
             return new IlluminateCheckpointStore(
                 $application->make(DatabaseManager::class)->connection(),
             );
+        });
+
+        $this->app->bind(ActivityStreamLogger::class, function (Application $application) {
+            return $application->make(IlluminateActivityStreamLogger::class);
         });
 
         $messageRepository = new IlluminateMessageStorage(

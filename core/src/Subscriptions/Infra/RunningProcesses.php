@@ -28,4 +28,6 @@ interface RunningProcesses
 
     public function reportStatus(string $processId, string $status): void;
 
+    public function isPaused(string $subscriptionId): bool;
+
 }
