@@ -70,14 +70,20 @@ final readonly class AllStreamSubscription
 
         $this->storeLog($log);
 
+        $lastProcessedEvent = null;
+
         foreach ($storedEvents as $storedEvent) {
             if(time() - $startTime >= $timeoutInSeconds) {
                 $queueTimedOut = true;
                 $this->appendToActivity($log, 'queue_timeout', 'queue timeout', []);
                 break;
             }
+
+
             $startTimeHandleMessage = microtime(true);
             $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
+
+            $lastProcessedEvent = $storedEvent;
             $messageCount += 1;
 
             $this->appendToActivity($log, 'handled_message', 'handled message', [
@@ -96,11 +102,11 @@ final readonly class AllStreamSubscription
             // if batch size reached, commit
             if($messageCount % $this->streamOptions->commitBatchSize === 0) {
                 $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
-                    'position' => $storedEvent->globalPosition,
+                    'position' => $lastProcessedEvent->globalPosition,
                 ]);
-                $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
+                $this->checkpointStore->store($checkpoint->withPosition($lastProcessedEvent->globalPosition));
                 $this->storeLog($log);
-                $lastCommit = $storedEvent->globalPosition;
+                $lastCommit = $lastProcessedEvent->globalPosition;
             }
         }
 
@@ -108,11 +114,11 @@ final readonly class AllStreamSubscription
             $this->consumePipe->afterHandlingBatch();
         }
 
-        if(isset($storedEvent) && $lastCommit !== $storedEvent->globalPosition) {
+        if(isset($lastProcessedEvent) && $lastCommit !== $lastProcessedEvent->globalPosition) {
             $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, end of loop', [
-                'position' => $storedEvent->globalPosition,
+                'position' => $lastProcessedEvent->globalPosition,
             ]);
-            $this->checkpointStore->store($checkpoint->withPosition($storedEvent->globalPosition));
+            $this->checkpointStore->store($checkpoint->withPosition($lastProcessedEvent->globalPosition));
         }
 
         if($messageCount === 0 && !$queueTimedOut) {
