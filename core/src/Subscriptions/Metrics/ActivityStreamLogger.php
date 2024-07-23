@@ -10,4 +10,6 @@ interface ActivityStreamLogger
      * @return array<SubscriptionActivity>
      */
     public function getLog(?string $streamId): array;
+
+    public function purgeOld(\DateTime $before = null): void;
 }

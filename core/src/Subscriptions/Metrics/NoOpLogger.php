@@ -14,4 +14,8 @@ final readonly class NoOpLogger implements ActivityStreamLogger
     {
         return [];
     }
+
+    public function purgeOld(\DateTime $before = null): void
+    {
+    }
 }
