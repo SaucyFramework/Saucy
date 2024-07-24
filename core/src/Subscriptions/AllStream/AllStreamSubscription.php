@@ -77,7 +77,11 @@ final readonly class AllStreamSubscription
         foreach ($storedEvents as $storedEvent) {
             if(time() - $startTime >= $timeoutInSeconds) {
                 $queueTimedOut = true;
-                $this->appendToActivity($log, 'queue_timeout', 'queue timeout', []);
+                $this->appendToActivity($log, 'queue_timeout', 'queue timeout', [
+                    'start_time' => $startTime,
+                    'curr_time' => time(),
+                    'timeout' => $timeoutInSeconds,
+                ]);
                 break;
             }
             $startTimeHandleMessage = microtime(true);
