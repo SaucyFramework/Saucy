@@ -31,9 +31,11 @@ final readonly class ProjectorMapBuilder
 
             $projectors[] = match (get_class($projectionAttribute)) {
                 Projector::class => new ProjectorConfig(
-                    $projectorClass,
-                    $projectorClass::getMessages(),
-                    ProjectorType::AllStream
+                    projectorClass: $projectorClass,
+                    handlingEventClasses: $projectorClass::getMessages(),
+                    projectorType: ProjectorType::AllStream,
+                    pageSize: $projectionAttribute->pageSize,
+                    commitBatchSize: $projectionAttribute->commitBatchSize,
                 ),
                 AggregateProjector::class => new ProjectorConfig(
                     $projectorClass,

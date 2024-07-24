@@ -78,11 +78,9 @@ final readonly class AllStreamSubscriptionProcessManager
 
     public function replaySubscription(string $name): void
     {
-        Log::notice('Replaying subscription', ['name' => $name]);
         $stream = $this->allStreamSubscriptionRegistry->get($name);
         // pause other triggers of this process
         $this->runningProcesses->pause($stream->subscriptionId, 'paused for replay');
-        Log::notice('Paused subscription', ['name' => $name]);
 
         // wait to obtain lock
         $processId = Ulid::generate();

@@ -16,5 +16,7 @@ final readonly class ProjectorConfig
         public ProjectorType $projectorType,
         public ?string $aggregateType = null,
         public bool $async = true,
+        public ?int $pageSize = null,
+        public ?int $commitBatchSize = null,
     ) {}
 }
