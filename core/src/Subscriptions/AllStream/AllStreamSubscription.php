@@ -36,7 +36,7 @@ final readonly class AllStreamSubscription
         $this->appendToActivity($log, 'started_poll', 'started poll', [
             'timeout' => $timeoutInSeconds,
             'start_time' => $startTime,
-            'time_left' => time() - $startTime,
+            'run_time' => time() - $startTime,
         ]);
 
         try {
@@ -52,7 +52,7 @@ final readonly class AllStreamSubscription
             'limit' =>  $this->streamOptions->pageSize,
             'eventTypes' =>  $this->streamOptions->eventTypes,
             'time' => time(),
-            'time_left' => time() - $startTime,
+            'run_time' => time() - $startTime,
         ]);
 
         $storedEvents = $this->eventReader->paginate(
@@ -65,7 +65,7 @@ final readonly class AllStreamSubscription
 
         $this->appendToActivity($log, 'loaded_events', 'loaded events', [
             'time' => time(),
-            'time_left' => time() - $startTime,
+            'run_time' => time() - $startTime,
         ]);
 
         $messageCount = 0;
@@ -91,7 +91,7 @@ final readonly class AllStreamSubscription
                     'start_time' => $startTime,
                     'curr_time' => time(),
                     'timeout' => $timeoutInSeconds,
-                    'time_left' => time() - $startTime,
+                    'run_time' => time() - $startTime,
                 ]);
                 break;
             }
@@ -126,7 +126,7 @@ final readonly class AllStreamSubscription
                     'position' => $lastProcessedEvent->globalPosition,
                     'messages_processed' => $timePerMessageType,
                     'time' => time(),
-                    'time_left' => time() - $startTime,
+                    'run_time' => time() - $startTime,
                 ]);
                 $this->checkpointStore->store($checkpoint->withPosition($lastProcessedEvent->globalPosition));
                 $this->storeLog($log);
@@ -144,7 +144,7 @@ final readonly class AllStreamSubscription
                 'position' => $lastProcessedEvent->globalPosition,
                 'messages_processed' => $timePerMessageType,
                 'time' => time(),
-                'time_left' => time() - $startTime,
+                'run_time' => time() - $startTime,
             ]);
             $this->checkpointStore->store($checkpoint->withPosition($lastProcessedEvent->globalPosition));
         }
@@ -154,7 +154,7 @@ final readonly class AllStreamSubscription
                 'position' => $maxPosition,
                 'messages_processed' => $timePerMessageType,
                 'time' => time(),
-                'time_left' => time() - $startTime,
+                'run_time' => time() - $startTime,
             ]);
             $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
         }

@@ -45,7 +45,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 
         $timeLeft = $runningProcesses->timeLeft($this->processId) - 5;
 
-        if($timeLeft < 0) {
+        if($timeLeft <= 0) {
             $runningProcesses->reportStatus($this->processId, 'stopping');
             $runningProcesses->stop($this->processId);
             $this->startNewProcess($subscription, $runningProcesses);
