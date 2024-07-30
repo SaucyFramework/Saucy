@@ -164,7 +164,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
 
     public function maxEventId(): int
     {
-        return DB::table($this->tableName)->max('global_position');
+        return DB::table($this->tableName)->max('global_position') ?? 0;
     }
 
     public function maxStreamPosition(StreamName $streamName): int
