@@ -90,6 +90,7 @@ final readonly class StreamSubscription
             metaData: $metaData,
             streamPosition: $storedEvent->streamPosition,
             globalPosition: $storedEvent->globalPosition,
+            occurredAt: $storedEvent->createdAt,
         );
     }
 
