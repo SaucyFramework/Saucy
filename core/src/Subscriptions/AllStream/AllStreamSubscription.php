@@ -5,8 +5,10 @@ namespace Saucy\Core\Subscriptions\AllStream;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
-use Saucy\Core\Subscriptions\ConsumePipe;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatHandlesBatches;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatResetsBeforeReplay;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\SubscriptionActivity;
 use Saucy\Core\Subscriptions\StreamOptions;
@@ -21,7 +23,7 @@ final readonly class AllStreamSubscription
     public function __construct(
         public string $subscriptionId,
         public StreamOptions $streamOptions,
-        public ConsumePipe $consumePipe,
+        public MessageConsumer $messageConsumer,
         public AllStreamReader $eventReader,
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,
@@ -55,10 +57,12 @@ final readonly class AllStreamSubscription
             'run_time' => time() - $startTime,
         ]);
 
+        $processBatches = $this->messageConsumer instanceof MessageConsumerThatHandlesBatches;
+
         $storedEvents = $this->eventReader->paginate(
             new AllStreamQuery(
                 fromPosition: $checkpoint->position,
-                limit: $this->streamOptions->pageSize,
+                limit: $processBatches ? $this->messageConsumer->getBatchSize() : $this->streamOptions->pageSize,
                 eventTypes: $this->streamOptions->eventTypes,
             ),
         );
@@ -73,9 +77,9 @@ final readonly class AllStreamSubscription
 
         $queueTimedOut = false;
 
-        $processBatches = $this->consumePipe->canHandleBatches();
+        $processBatches = $this->messageConsumer instanceof MessageConsumerThatHandlesBatches;
         if($processBatches) {
-            $this->consumePipe->beforeHandlingBatch();
+            $this->messageConsumer->beforeHandlingBatch();
         }
 
         $this->storeLog($log);
@@ -97,7 +101,7 @@ final readonly class AllStreamSubscription
             }
             $startTimeHandleMessage = microtime(true);
 
-            $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
+            $this->messageConsumer->handle($this->storedMessageToContext($storedEvent));
 
             $processingTime = microtime(true) - $startTimeHandleMessage;
 
@@ -120,7 +124,7 @@ final readonly class AllStreamSubscription
                 continue;
             }
 
-            // if batch size reached, commit
+            // if commit  size reached, commit
             if($messageCount % $this->streamOptions->commitBatchSize === 0) {
                 $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
                     'position' => $lastProcessedEvent->globalPosition,
@@ -136,7 +140,7 @@ final readonly class AllStreamSubscription
         }
 
         if($processBatches) {
-            $this->consumePipe->afterHandlingBatch();
+            $this->messageConsumer->afterHandlingBatch();
         }
 
         if(isset($lastProcessedEvent) && $lastCommit !== $lastProcessedEvent->globalPosition) {
@@ -167,7 +171,10 @@ final readonly class AllStreamSubscription
     {
         $log = [];
         $this->appendToActivity($log, 'prepare_replay', 'prepare replay');
-        $this->consumePipe->prepareReplay();
+        if($this->messageConsumer instanceof MessageConsumerThatResetsBeforeReplay) {
+            $this->messageConsumer->prepareReplay();
+        }
+
         $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
             'position' => $this->streamOptions->startingFromPosition,
             'reason' => 'replay',

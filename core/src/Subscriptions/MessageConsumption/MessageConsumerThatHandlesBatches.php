@@ -2,10 +2,11 @@
 
 namespace Saucy\Core\Subscriptions\MessageConsumption;
 
-interface FilterThatProcessesInBatches extends ConsumeFilter
+interface MessageConsumerThatHandlesBatches
 {
-    public function handlesBatches(): bool;
     public function beforeHandlingBatch(): void;
+
     public function afterHandlingBatch(): void;
 
+    public function getBatchSize(): int;
 }

@@ -2,13 +2,12 @@
 
 namespace Saucy\Core\Subscriptions\StreamSubscription;
 
-use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
-use Saucy\Core\Subscriptions\ConsumePipe;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\MessageStorage\StreamReader;
 use Saucy\MessageStorage\Serialization\EventSerializer;
@@ -22,7 +21,7 @@ final readonly class StreamSubscription
         // for now this is placed here, but can imagine this moving to an "AggregateSubscription child of the StreamSubscription class, since it's not used here
         public string $aggregateType,
         public StreamOptions $streamOptions,
-        public ConsumePipe $consumePipe,
+        public MessageConsumer $messageConsumer,
         public StreamReader $eventReader,
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,

@@ -11,8 +11,6 @@ use Saucy\Core\Projections\ProjectorType;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscription;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
-use Saucy\Core\Subscriptions\ConsumePipe;
-use Saucy\Core\Subscriptions\MessageConsumption\HandlerFilter;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscription;
@@ -52,7 +50,7 @@ final readonly class SubscriptionRegistryFactory
                 } catch (UnableToInflectClassName $e) {
                     return false;
                 }
-            }, $projectorConfig->handlingEventClasses)
+            }, $projectorConfig->handlingEventClasses),
         );
     }
 
@@ -68,11 +66,7 @@ final readonly class SubscriptionRegistryFactory
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
             ),
-            consumePipe: new ConsumePipe(
-                new HandlerFilter(
-                    $application->make($projectorConfig->projectorClass),
-                )
-            ),
+            messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(AllStreamReader::class),
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $application->make(CheckpointStore::class),
@@ -96,11 +90,7 @@ final readonly class SubscriptionRegistryFactory
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.stream_projection.queue'), // @phpstan-ignore-line
             ),
-            consumePipe: new ConsumePipe(
-                new HandlerFilter(
-                    $application->make($projectorConfig->projectorClass),
-                )
-            ),
+            messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(StreamReader::class),
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $application->make(CheckpointStore::class),

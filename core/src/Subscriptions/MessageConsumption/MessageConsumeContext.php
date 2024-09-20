@@ -24,4 +24,40 @@ readonly class MessageConsumeContext
         public int $globalPosition,
         public \DateTimeImmutable $occurredAt,
     ) {}
+
+    public function __serialize(): array
+    {
+        return [
+            'eventId' => $this->eventId,
+            'subscriptionId' => $this->subscriptionId,
+            'streamNameType' => $this->streamNameType,
+            'streamType' => $this->streamType,
+            'streamNameAsString' => $this->streamNameAsString,
+            'streamName' => $this->streamName,
+            'eventClass' => $this->eventClass,
+            'eventType' => $this->eventType,
+            'eventPayload' => $this->event->toPayload(),
+            'metaData' => $this->metaData,
+            'streamPosition' => $this->streamPosition,
+            'globalPosition' => $this->globalPosition,
+            'occurredAt' => $this->occurredAt->format('c'),
+        ];
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->eventId = $data['eventId'];
+        $this->subscriptionId = $data['subscriptionId'];
+        $this->streamNameType = $data['streamNameType'];
+        $this->streamType = $data['streamType'];
+        $this->streamNameAsString = $data['streamNameAsString'];
+        $this->streamName = $data['streamName'];
+        $this->eventClass = $data['eventClass'];
+        $this->eventType = $data['eventType'];
+        $this->metaData = $data['metaData'];
+        $this->streamPosition = $data['streamPosition'];
+        $this->globalPosition = $data['globalPosition'];
+        $this->occurredAt = new \DateTimeImmutable($data['occurredAt']);
+        $this->event = $this->eventClass::fromPayload($data['eventPayload']);
+    }
 }
