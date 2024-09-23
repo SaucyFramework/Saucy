@@ -45,7 +45,7 @@ final readonly class StreamSubscription
         $lastCommit = 0;
 
         foreach ($storedEvents as $storedEvent) {
-            $this->consumePipe->handle($this->storedMessageToContext($storedEvent));
+            $this->messageConsumer->handle($this->storedMessageToContext($storedEvent));
             $messageCount += 1;
             // if batch size reached, commit
             if($messageCount === $this->streamOptions->commitBatchSize) {
@@ -71,7 +71,7 @@ final readonly class StreamSubscription
             new SerializationResult(
                 eventType: $storedEvent->eventType,
                 payload: $storedEvent->payloadJson,
-            )
+            ),
         );
 
         /** @var array<string, mixed> $metaData */
