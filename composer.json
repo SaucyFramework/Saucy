@@ -6,7 +6,7 @@
         "ext-pdo": "*",
         "eventsauce/eventsauce": "^3.5",
         "league/construct-finder": "^1",
-        "robertbaelde/attribute-finder": "^0.1.0",
+        "robertbaelde/attribute-finder": "^0.2.0",
         "eventsauce/backoff": "^1.2",
         "laravel/framework": "^11.21"
     },
