@@ -5,7 +5,7 @@
         "php": "^8.2|^8.3|^8.4",
         "ext-pdo": "*",
         "eventsauce/eventsauce": "^3.5",
-        "league/construct-finder": "^1",
+        "league/construct-finder": "^1.4",
         "robertbaelde/attribute-finder": "^0.2.0",
         "eventsauce/backoff": "^1.2",
         "laravel/framework": "^11.21"
