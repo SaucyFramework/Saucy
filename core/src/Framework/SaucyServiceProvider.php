@@ -21,6 +21,7 @@ use Saucy\Core\Projections\ProjectorMapBuilder;
 use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlerMapBuilder;
 use Saucy\Core\Query\QueryHandlingMiddleware;
+use Saucy\Core\Query\SelfHandlingQueryHandler;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
