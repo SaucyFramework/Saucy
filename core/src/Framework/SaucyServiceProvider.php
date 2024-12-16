@@ -161,6 +161,7 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->app->instance(
             QueryBus::class,
             new QueryBus(
+                new SelfHandlingQueryHandler(),
                 new QueryHandlingMiddleware(
                     new TaskRunner($this->app),
                     QueryHandlerMapBuilder::buildQueryMapForClasses($classes),
