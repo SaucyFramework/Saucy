@@ -28,6 +28,21 @@ final class StreamPollSubscriptionJob implements ShouldQueue
         public StreamName $streamName,
     ) {}
 
+    public function displayName(): string
+    {
+        return "projection: {$this->subscriptionId} - {$this->streamName->toString()} - {$this->processId}";
+    }
+
+    public function tags(): array
+    {
+        return [
+            'projection',
+            'subscription:' . $this->subscriptionId,
+            'stream:' . $this->streamName->toString(),
+            'streamType:' . $this->streamName->type()
+        ];
+    }
+
     public function handle(
         StreamSubscriptionRegistry $subscriptionRegistry,
         RunningProcesses $runningProcesses,

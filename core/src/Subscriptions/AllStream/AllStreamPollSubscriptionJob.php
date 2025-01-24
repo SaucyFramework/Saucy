@@ -34,6 +34,19 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         $this->runSubscription($subscription, $runningProcesses);
     }
 
+    public function displayName(): string
+    {
+        return "projection: {$this->subscriptionId} - {$this->processId}";
+    }
+
+    public function tags(): array
+    {
+        return [
+            'projection',
+            'subscription:' . $this->subscriptionId,
+        ];
+    }
+
     private function runSubscription(AllStreamSubscription $subscription, RunningProcesses $runningProcesses): void
     {
         if(!$runningProcesses->isActive($this->subscriptionId, $this->processId)) {
