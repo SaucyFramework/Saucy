@@ -30,7 +30,7 @@ final class StreamPollSubscriptionJob implements ShouldQueue
 
     public function displayName(): string
     {
-        return "projection: {$this->subscriptionId} - {$this->streamName->toString()} - {$this->processId}";
+        return "projection: {$this->subscriptionId} - {$this->streamName->toString()}";
     }
 
     public function tags(): array
@@ -39,7 +39,8 @@ final class StreamPollSubscriptionJob implements ShouldQueue
             'projection',
             'subscription:' . $this->subscriptionId,
             'stream:' . $this->streamName->toString(),
-            'streamType:' . $this->streamName->type()
+            'streamType:' . $this->streamName->type(),
+            'processId' => $this->processId,
         ];
     }
 

@@ -36,7 +36,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 
     public function displayName(): string
     {
-        return "projection: {$this->subscriptionId} - {$this->processId}";
+        return "projection: {$this->subscriptionId}";
     }
 
     public function tags(): array
@@ -44,6 +44,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         return [
             'projection',
             'subscription:' . $this->subscriptionId,
+            'processId' => $this->processId,
         ];
     }
 
