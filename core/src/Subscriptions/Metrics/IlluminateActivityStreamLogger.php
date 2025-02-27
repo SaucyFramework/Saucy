@@ -42,8 +42,22 @@ final readonly class IlluminateActivityStreamLogger implements ActivityStreamLog
     public function purgeOld(?\DateTime $before = null): void
     {
         $before ??= (new \DateTime('now'))->sub(new \DateInterval('P1W'));
-        DB::table('subscription_activity_stream_log')
-            ->where('occurred_at', '<', $before->format('Y-m-d H:i:s'))
-            ->delete();
+        $dateThreshold = $before->format('Y-m-d H:i:s');
+
+        // Use a batch size smaller than the 100,000 row limit
+        $batchSize = 10000;
+        $deleted = 0;
+
+        do {
+            // Delete records in small batches
+            $affectedRows = DB::table('subscription_activity_stream_log')
+                ->where('occurred_at', '<', $dateThreshold)
+                ->limit($batchSize)
+                ->delete();
+
+            $deleted += $affectedRows;
+
+            // If we deleted fewer rows than the batch size, we're done
+        } while ($affectedRows > 0);
     }
 }
