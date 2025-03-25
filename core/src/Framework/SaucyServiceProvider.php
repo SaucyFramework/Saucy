@@ -87,7 +87,7 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->instance(TypeMap::class, $typeMap);
 
-        $this->app->singleton(Tracer::class, fn() => new Tracer());
+        $this->app->scoped(Tracer::class, fn() => new Tracer());
 
         $this->app->bind(RunningProcesses::class, function (Application $application) {
             return new IlluminateRunningProcesses(
