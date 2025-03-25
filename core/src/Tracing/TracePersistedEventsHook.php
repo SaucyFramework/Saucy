@@ -9,15 +9,13 @@ use Saucy\MessageStorage\Hooks\AfterPersistHook;
 final readonly class TracePersistedEventsHook implements AfterPersistHook
 {
     public function __construct(
-        public Tracer $tracer,
-    )
-    {
+    ){
     }
 
     public function trigger(StreamName $streamName, StreamEvent ...$streamEvents): void
     {
         foreach ($streamEvents as $event){
-            $this->tracer->trace('persistedEvent', $event->eventId);
+            resolve(Tracer::class)->trace('persistedEvent', $event->eventId);
         }
     }
 }
