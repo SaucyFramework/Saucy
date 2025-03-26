@@ -119,7 +119,7 @@ final readonly class AllStreamSubscriptionProcessManager
             return;
         }
 
-        if(!$this->runSync->isRunSync()) {
+        if(!$this->runSync->isRunSync($stream->messageConsumer)) {
             AllStreamPollSubscriptionJob::dispatch($stream->subscriptionId, $processId)->onQueue($stream->streamOptions->queue);
             return;
         }
