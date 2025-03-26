@@ -46,7 +46,7 @@ final readonly class StreamSubscriptionProcessManager
             return;
         }
 
-        if(!$this->runSync->isRunSync()) {
+        if(!$this->runSync->isRunSync($stream->messageConsumer)) {
             StreamPollSubscriptionJob::dispatch($stream->subscriptionId, $processId, $aggregateStreamName)->onQueue($stream->streamOptions->queue);
             return;
         }
