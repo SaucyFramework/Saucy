@@ -31,6 +31,40 @@ final readonly class AllStreamSubscription
         public ActivityStreamLogger $activityStreamLogger,
     ) {}
 
+    public function isUpToDate(?int $upToPosition): bool
+    {
+        try {
+            $checkpoint = $this->checkpointStore->get($this->subscriptionId);
+        } catch (Checkpoints\CheckpointNotFound $e) {
+            $checkpoint = new Checkpoints\Checkpoint($this->subscriptionId, $this->streamOptions->startingFromPosition);
+        }
+
+        if ($upToPosition !== null && $checkpoint->position >= $upToPosition) {
+            return true;
+        }
+
+        $storedEvents = $this->eventReader->paginate(
+            new AllStreamQuery(
+                fromPosition: $checkpoint->position,
+                limit: 1,
+                eventTypes: $this->streamOptions->eventTypes,
+            ),
+        );
+
+        // get count of stored events before upToPosition
+        $count = 0;
+        foreach ($storedEvents as $storedEvent) {
+            if ($upToPosition !== null) {
+                if ($storedEvent->globalPosition > $upToPosition) {
+                    break;
+                }
+            }
+            $count++;
+        }
+
+        return $count === 0;
+    }
+
     public function poll(int $timeoutInSeconds = 100): int
     {
         $log = [];
@@ -78,7 +112,7 @@ final readonly class AllStreamSubscription
         $queueTimedOut = false;
 
         $processBatches = $this->messageConsumer instanceof MessageConsumerThatHandlesBatches;
-        if($processBatches) {
+        if ($processBatches) {
             $this->messageConsumer->beforeHandlingBatch();
         }
 
@@ -89,7 +123,7 @@ final readonly class AllStreamSubscription
         $timePerMessageType = [];
 
         foreach ($storedEvents as $storedEvent) {
-            if((time() - $startTime) >= $timeoutInSeconds) {
+            if ((time() - $startTime) >= $timeoutInSeconds) {
                 $queueTimedOut = true;
                 $this->appendToActivity($log, 'queue_timeout', 'queue timeout', [
                     'start_time' => $startTime,
@@ -105,7 +139,7 @@ final readonly class AllStreamSubscription
 
             $processingTime = microtime(true) - $startTimeHandleMessage;
 
-            if(!array_key_exists($storedEvent->eventType, $timePerMessageType)) {
+            if (!array_key_exists($storedEvent->eventType, $timePerMessageType)) {
                 $timePerMessageType[$storedEvent->eventType] = [
                     'count' => 0,
                     'total_time' => 0,
@@ -120,12 +154,12 @@ final readonly class AllStreamSubscription
             $lastProcessedEvent = $storedEvent;
             $messageCount += 1;
 
-            if($processBatches) {
+            if ($processBatches) {
                 continue;
             }
 
             // if commit  size reached, commit
-            if($messageCount % $this->streamOptions->commitBatchSize === 0) {
+            if ($messageCount % $this->streamOptions->commitBatchSize === 0) {
                 $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
                     'position' => $lastProcessedEvent->globalPosition,
                     'messages_processed' => $timePerMessageType,
@@ -139,11 +173,11 @@ final readonly class AllStreamSubscription
             }
         }
 
-        if($processBatches) {
+        if ($processBatches) {
             $this->messageConsumer->afterHandlingBatch();
         }
 
-        if(isset($lastProcessedEvent) && $lastCommit !== $lastProcessedEvent->globalPosition) {
+        if (isset($lastProcessedEvent) && $lastCommit !== $lastProcessedEvent->globalPosition) {
             $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, end of loop', [
                 'position' => $lastProcessedEvent->globalPosition,
                 'messages_processed' => $timePerMessageType,
@@ -153,7 +187,7 @@ final readonly class AllStreamSubscription
             $this->checkpointStore->store($checkpoint->withPosition($lastProcessedEvent->globalPosition));
         }
 
-        if($messageCount === 0 && !$queueTimedOut) {
+        if ($messageCount === 0 && !$queueTimedOut) {
             $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, 0 handled', [
                 'position' => $maxPosition,
                 'messages_processed' => $timePerMessageType,
@@ -171,7 +205,7 @@ final readonly class AllStreamSubscription
     {
         $log = [];
         $this->appendToActivity($log, 'prepare_replay', 'prepare replay');
-        if($this->messageConsumer instanceof MessageConsumerThatResetsBeforeReplay) {
+        if ($this->messageConsumer instanceof MessageConsumerThatResetsBeforeReplay) {
             $this->messageConsumer->prepareReplay();
         }
 
