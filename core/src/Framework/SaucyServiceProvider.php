@@ -7,23 +7,16 @@ use EventSauce\BackOff\ExponentialBackOffStrategy;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\ServiceProvider;
-use League\ConstructFinder\ConstructFinder;
 use Saucy\Core\Command\CommandBus;
 use Saucy\Core\Command\TaskMapCommandHandler;
-use Saucy\Core\Events\EventTypeMapBuilder;
 use Saucy\Core\Events\Streams\AggregateRootStreamNameMapper;
-use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Events\Streams\StreamNameMapper;
-use Saucy\Core\EventSourcing\CommandHandling\EventSourcingCommandMapBuilder;
-use Saucy\Core\EventSourcing\TypeMap\AggregateRootTypeMapBuilder;
+use Saucy\Core\Laravel\Commands\BuildSaucyCache;
 use Saucy\Core\Projections\AwaitProjected;
-use Saucy\Core\Projections\ProjectorMapBuilder;
 use Saucy\Core\Query\QueryBus;
-use Saucy\Core\Query\QueryHandlerMapBuilder;
 use Saucy\Core\Query\QueryHandlingMiddleware;
 use Saucy\Core\Query\SelfHandlingQueryHandler;
 use Saucy\Core\Serialisation\TypeMap;
-use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Checkpoints\IlluminateCheckpointStore;
@@ -35,7 +28,6 @@ use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\IlluminateActivityStreamLogger;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
-use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionProcessManager;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
 use Saucy\Core\Tracing\TracePersistedEventsHook;
@@ -47,6 +39,7 @@ use Saucy\MessageStorage\HooksMessageStore;
 use Saucy\MessageStorage\IlluminateMessageStorage;
 use Saucy\MessageStorage\ReadEventData;
 use Saucy\MessageStorage\Serialization\ConstructingPayloadSerializer;
+use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\StreamReader;
 use Saucy\Tasks\TaskRunner;
 
@@ -59,6 +52,10 @@ final class SaucyServiceProvider extends ServiceProvider
         ]);
 
         $this->loadMigrationsFrom(__DIR__ . '/../../../migrations');
+
+        $this->commands([
+            BuildSaucyCache::class,
+        ]);
     }
 
     public function register(): void
@@ -68,18 +65,13 @@ final class SaucyServiceProvider extends ServiceProvider
             'saucy',
         );
 
-        $classes = ConstructFinder::locatedIn(...config('saucy.directories'))
-            ->exclude(...config('saucy.exclude_files', ['*Test.php', '*/Tests/*', '*TestCase.php']))
-            ->findClassNames(); // @phpstan-ignore-line
+        $this->app->bind(BuildSaucyProjectMappings::class, fn() => new BuildSaucyProjectMappings(config('saucy.cache_path')));
 
-        // build type map
-        $typeMap = TypeMap::of(
-            AggregateRootTypeMapBuilder::make()->create($classes),
-            EventTypeMapBuilder::make()->create($classes),
-            new TypeMap([
-                AggregateStreamName::class => 'aggregate_stream_name',
-            ]),
-        );
+        $builder = $this->app->make(BuildSaucyProjectMappings::class);
+        /** @var SaucyProjectMaps $saucyProjectMaps */
+        $saucyProjectMaps = $builder->get(forceNew: config('app.env') === 'local');
+
+        $typeMap = $saucyProjectMaps->typeMap;
 
         $this->app->instance(RunAllSubscriptionsInSync::class, new RunAllSubscriptionsInSync(
             runSync: config('app.env') === 'testing',
@@ -129,8 +121,7 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->when(AwaitProjected::class)->needs(BackOffStrategy::class)->give(fn() => new ExponentialBackOffStrategy(500, 10000, 50000, 2));
 
-        // auto wire stream subscriptions
-        $projectorMap = ProjectorMapBuilder::buildForClasses($classes, $typeMap);
+        $projectorMap = $saucyProjectMaps->projectorMap;
 
         $this->app->bind(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
@@ -146,7 +137,7 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->instance(StreamNameMapper::class, new AggregateRootStreamNameMapper());
 
-        $commandTaskMap = EventSourcingCommandMapBuilder::buildTaskMapForClasses($classes);
+        $commandTaskMap = $saucyProjectMaps->commandTaskMap;
 
         $this->app->instance(
             CommandBus::class,
@@ -164,9 +155,11 @@ final class SaucyServiceProvider extends ServiceProvider
                 new SelfHandlingQueryHandler(),
                 new QueryHandlingMiddleware(
                     new TaskRunner($this->app),
-                    QueryHandlerMapBuilder::buildQueryMapForClasses($classes),
+                    $saucyProjectMaps->queryMap,
                 ),
             ),
         );
+
+        $this->app->instance(EventSerializer::class, new ConstructingPayloadSerializer($this->app->make(TypeMap::class)));
     }
 }

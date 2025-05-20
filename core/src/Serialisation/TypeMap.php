@@ -2,13 +2,14 @@
 
 namespace Saucy\Core\Serialisation;
 
+use EventSauce\EventSourcing\Serialization\SerializablePayload;
 use EventSauce\EventSourcing\UnableToInflectClassName;
 use EventSauce\EventSourcing\UnableToInflectEventType;
 
 /**
  * Copied from EventSauce\EventSourcing\ClassNameInflector
  */
-final readonly class TypeMap
+final readonly class TypeMap implements SerializablePayload
 {
     /** @var array<string, class-string>|null */
     private array|null $typeToClassMap;
@@ -84,5 +85,15 @@ final readonly class TypeMap
         }
 
         return $map;
+    }
+
+    public function toPayload(): array
+    {
+        return ['t' => $this->classToTypeMap];
+    }
+
+    public static function fromPayload(array $payload): static
+    {
+        return new static($payload['t'] ?? []);
     }
 }

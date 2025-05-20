@@ -6,6 +6,8 @@ return [
         __DIR__ . '/../app'
     ],
 
+    'cache_path' => base_path('saucy/cache.dat'),
+
     'exclude_files' => ['*Test.php', '*/Tests/*', '*TestCase.php'],
 
 
