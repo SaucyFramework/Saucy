@@ -8,7 +8,7 @@
         "league/construct-finder": "dev-main as 1.4",
         "robertbaelde/attribute-finder": "^0.2.0",
         "eventsauce/backoff": "^1.2",
-        "laravel/framework": "^11.21"
+        "laravel/framework": "^11.21 || ^12.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
