@@ -4,6 +4,7 @@
     "require": {
         "php": "^8.2|^8.3|^8.4",
         "ext-pdo": "*",
+        "aws/aws-sdk-php": "^3.359",
         "eventsauce/eventsauce": "^3.5",
         "league/construct-finder": "dev-main as 1.4",
         "robertbaelde/attribute-finder": "^0.2.0",
@@ -37,7 +38,8 @@
             "Workbench\\Tests\\": "workbench/tests/",
             "Workbench\\Database\\Factories\\": "workbench/database/factories/",
             "Workbench\\Database\\Seeders\\": "workbench/database/seeders/",
-            "Saucy\\Tasks\\Tests\\": "tasks/tests/"
+            "Saucy\\Tasks\\Tests\\": "tasks/tests/",
+            "Saucy\\MessageStorage\\Tests\\": "messageStorage/tests/"
         }
     },
     "scripts": {

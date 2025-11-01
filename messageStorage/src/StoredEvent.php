@@ -13,7 +13,7 @@ final readonly class StoredEvent
         public string $payloadJson,
         public string $metadataJson,
         public int $streamPosition,
-        public int $globalPosition,
+        public ?int $globalPosition,
         public \DateTimeImmutable $createdAt,
     ) {}
 }

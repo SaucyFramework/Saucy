@@ -4,6 +4,8 @@
     <testsuites>
         <testsuite name="Tests">
             <directory suffix="Test.php">tests/</directory>
+            <directory suffix="Test.php">messageStorage/tests/</directory>
+            <directory suffix="Test.php">tasks/tests/</directory>
         </testsuite>
     </testsuites>
     <php>

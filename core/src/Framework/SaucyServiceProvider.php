@@ -12,6 +12,7 @@ use Saucy\Core\Command\TaskMapCommandHandler;
 use Saucy\Core\Events\Streams\AggregateRootStreamNameMapper;
 use Saucy\Core\Events\Streams\StreamNameMapper;
 use Saucy\Core\Laravel\Commands\BuildSaucyCache;
+use Saucy\Core\Laravel\Commands\EnsureDynamoDbTables;
 use Saucy\Core\Projections\AwaitProjected;
 use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlingMiddleware;
@@ -55,6 +56,7 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->commands([
             BuildSaucyCache::class,
+            EnsureDynamoDbTables::class,
         ]);
     }
 

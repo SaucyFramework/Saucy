@@ -13,7 +13,6 @@ use Saucy\Core\Serialisation\TypeMap;
 use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\Serialization\SerializationResult;
 
-use App\Components\Api\EventData;
 final readonly class IlluminateMessageStorage implements AllStreamMessageRepository, AllStreamReader, StreamReader, ReadEventData
 {
     public function __construct(
