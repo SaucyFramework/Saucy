@@ -9,5 +9,6 @@ class Projector {
     public function __construct(
         public ?int $pageSize = null,
         public ?int $commitBatchSize = null,
+        public ?string $eventStore = null,
     ) {}
 }

@@ -2,6 +2,7 @@
 
 namespace Saucy\Core\Subscriptions\StreamSubscription;
 
+use Saucy\Core\EventSourcing\EventStoreRegistry;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\Checkpoints;
@@ -14,19 +15,30 @@ use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\Serialization\SerializationResult;
 use Saucy\MessageStorage\StoredEvent;
 
-final readonly class StreamSubscription
+final class StreamSubscription
 {
+    private ?StreamReader $eventReaderCache = null;
+
     public function __construct(
         public string $subscriptionId,
         // for now this is placed here, but can imagine this moving to an "AggregateSubscription child of the StreamSubscription class, since it's not used here
         public string $aggregateType,
         public StreamOptions $streamOptions,
         public MessageConsumer $messageConsumer,
-        public StreamReader $eventReader,
+        private EventStoreRegistry $eventStoreRegistry,
+        private ?string $eventStoreId,
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,
         public TypeMap $streamNameTypeMap,
     ) {}
+
+    private function getEventReader(): StreamReader
+    {
+        if ($this->eventReaderCache === null) {
+            $this->eventReaderCache = $this->eventStoreRegistry->getStreamReader($this->eventStoreId);
+        }
+        return $this->eventReaderCache;
+    }
 
     public function poll(StreamName $streamName): int
     {
@@ -37,9 +49,9 @@ final readonly class StreamSubscription
             $checkpoint = new Checkpoints\Checkpoint($streamIdentifier, $this->streamOptions->startingFromPosition);
         }
 
-        $maxPosition = $this->eventReader->maxStreamPosition($streamName);
+        $maxPosition = $this->getEventReader()->maxStreamPosition($streamName);
 
-        $storedEvents = $this->eventReader->retrieveAllInStreamSinceCheckpoint($streamName, $checkpoint->position);
+        $storedEvents = $this->getEventReader()->retrieveAllInStreamSinceCheckpoint($streamName, $checkpoint->position);
 
         $messageCount = 0;
         $lastCommit = 0;

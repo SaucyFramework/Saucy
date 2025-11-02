@@ -4,7 +4,10 @@ namespace Saucy\Core\Subscriptions\Infra;
 
 use EventSauce\EventSourcing\UnableToInflectClassName;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Saucy\Core\EventSourcing\EventStoreNotFoundException;
+use Saucy\Core\EventSourcing\EventStoreRegistry;
 use Saucy\Core\Projections\ProjectorConfig;
 use Saucy\Core\Projections\ProjectorMap;
 use Saucy\Core\Projections\ProjectorType;
@@ -56,6 +59,10 @@ final readonly class SubscriptionRegistryFactory
 
     private static function buildAllStreamSubscription(ProjectorConfig $projectorConfig, TypeMap $typeMap, Application $application): AllStreamSubscription
     {
+        $eventStoreRegistry = $application->make(EventStoreRegistry::class);
+        $eventStoreId = $projectorConfig->eventStore;
+
+        // Pass registry and store ID for lazy resolution - stores can be registered at any time during boot
         return new AllStreamSubscription(
             subscriptionId: Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake(),
             streamOptions: new StreamOptions(
@@ -67,7 +74,8 @@ final readonly class SubscriptionRegistryFactory
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
             ),
             messageConsumer: $application->make($projectorConfig->projectorClass),
-            eventReader: $application->make(AllStreamReader::class),
+            eventStoreRegistry: $eventStoreRegistry,
+            eventStoreId: $eventStoreId,
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $application->make(CheckpointStore::class),
             streamNameTypeMap: $typeMap,
@@ -81,6 +89,10 @@ final readonly class SubscriptionRegistryFactory
             throw new \Exception('Aggregate type is required for aggregate instance projectors');
         }
 
+        $eventStoreRegistry = $application->make(EventStoreRegistry::class);
+        $eventStoreId = $projectorConfig->eventStore;
+
+        // Pass registry and store ID for lazy resolution - stores can be registered at any time during boot
         return new StreamSubscription(
             subscriptionId: Str::of($projectorConfig->projectorClass)->snake(),
             aggregateType: $projectorConfig->aggregateType,
@@ -91,7 +103,8 @@ final readonly class SubscriptionRegistryFactory
                 queue: config('saucy.stream_projection.queue'), // @phpstan-ignore-line
             ),
             messageConsumer: $application->make($projectorConfig->projectorClass),
-            eventReader: $application->make(StreamReader::class),
+            eventStoreRegistry: $eventStoreRegistry,
+            eventStoreId: $eventStoreId,
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $application->make(CheckpointStore::class),
             streamNameTypeMap: $typeMap,

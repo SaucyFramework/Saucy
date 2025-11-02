@@ -19,6 +19,7 @@ final readonly class ProjectorConfig implements SerializablePayload
         public bool $async = true,
         public ?int $pageSize = null,
         public ?int $commitBatchSize = null,
+        public ?string $eventStore = null,
     ) {}
 
     public function toPayload(): array
@@ -31,6 +32,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             'async' => $this->async,
             'pageSize' => $this->pageSize,
             'commitBatchSize' => $this->commitBatchSize,
+            'eventStore' => $this->eventStore,
         ];
     }
 
@@ -44,6 +46,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             async: $payload['async'] ?? true,
             pageSize: $payload['pageSize'] ?? null,
             commitBatchSize: $payload['commitBatchSize'] ?? null,
+            eventStore: $payload['eventStore'] ?? null,
         );
     }
 }

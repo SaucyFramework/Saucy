@@ -4,6 +4,7 @@ namespace Saucy\Core\Framework;
 
 use EventSauce\EventSourcing\Serialization\SerializablePayload;
 use Saucy\Core\Command\CommandTaskMap;
+use Saucy\Core\EventSourcing\AggregateEventStoreMap;
 use Saucy\Core\Projections\ProjectorMap;
 use Saucy\Core\Query\QueryMap;
 use Saucy\Core\Serialisation\TypeMap;
@@ -15,6 +16,7 @@ final readonly class SaucyProjectMaps implements SerializablePayload
         public ProjectorMap $projectorMap,
         public CommandTaskMap $commandTaskMap,
         public QueryMap $queryMap,
+        public AggregateEventStoreMap $aggregateEventStoreMap,
     ) {
     }
 
@@ -25,6 +27,7 @@ final readonly class SaucyProjectMaps implements SerializablePayload
             'projectorMap' => $this->projectorMap->toPayload(),
             'commandTaskMap' => $this->commandTaskMap->toPayload(),
             'queryMap' => $this->queryMap->toPayload(),
+            'aggregateEventStoreMap' => $this->aggregateEventStoreMap->toPayload(),
         ];
     }
 
@@ -35,6 +38,7 @@ final readonly class SaucyProjectMaps implements SerializablePayload
             projectorMap: ProjectorMap::fromPayload($payload['projectorMap']),
             commandTaskMap: CommandTaskMap::fromPayload($payload['commandTaskMap']),
             queryMap: QueryMap::fromPayload($payload['queryMap']),
+            aggregateEventStoreMap: AggregateEventStoreMap::fromPayload($payload['aggregateEventStoreMap'] ?? ['map' => []]),
         );
     }
 }

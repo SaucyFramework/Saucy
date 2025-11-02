@@ -47,7 +47,6 @@ final readonly class AllStreamSubscriptionProcessManager
      */
     public function startProcessesThatRequireEvents(array $eventTypes): void
     {
-        // start all streams as processes
         foreach ($this->allStreamSubscriptionRegistry->streams as $stream) {
             if($stream->streamOptions->eventTypes === null) {
                 continue;

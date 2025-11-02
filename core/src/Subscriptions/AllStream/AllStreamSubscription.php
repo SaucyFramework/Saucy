@@ -2,6 +2,7 @@
 
 namespace Saucy\Core\Subscriptions\AllStream;
 
+use Saucy\Core\EventSourcing\EventStoreRegistry;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
@@ -18,18 +19,29 @@ use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\Serialization\SerializationResult;
 use Saucy\MessageStorage\StoredEvent;
 
-final readonly class AllStreamSubscription
+final class AllStreamSubscription
 {
+    private ?AllStreamReader $eventReaderCache = null;
+
     public function __construct(
         public string $subscriptionId,
         public StreamOptions $streamOptions,
         public MessageConsumer $messageConsumer,
-        public AllStreamReader $eventReader,
+        private EventStoreRegistry $eventStoreRegistry,
+        private ?string $eventStoreId,
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,
         public TypeMap $streamNameTypeMap,
         public ActivityStreamLogger $activityStreamLogger,
     ) {}
+
+    private function getEventReader(): AllStreamReader
+    {
+        if ($this->eventReaderCache === null) {
+            $this->eventReaderCache = $this->eventStoreRegistry->getAllStreamReader($this->eventStoreId);
+        }
+        return $this->eventReaderCache;
+    }
 
     public function isUpToDate(?int $upToPosition): bool
     {
@@ -43,7 +55,7 @@ final readonly class AllStreamSubscription
             return true;
         }
 
-        $storedEvents = $this->eventReader->paginate(
+        $storedEvents = $this->getEventReader()->paginate(
             new AllStreamQuery(
                 fromPosition: $checkpoint->position,
                 limit: 1,
@@ -81,7 +93,7 @@ final readonly class AllStreamSubscription
             $checkpoint = new Checkpoints\Checkpoint($this->subscriptionId, $this->streamOptions->startingFromPosition);
         }
 
-        $maxPosition = $this->eventReader->maxEventId();
+        $maxPosition = $this->getEventReader()->maxEventId();
 
         $this->appendToActivity($log, 'loading_events', 'loading events', [
             'fromPosition' =>  $checkpoint->position,
@@ -92,11 +104,14 @@ final readonly class AllStreamSubscription
         ]);
 
         $processBatches = $this->messageConsumer instanceof MessageConsumerThatHandlesBatches;
+        $limit = $processBatches && $this->messageConsumer instanceof MessageConsumerThatHandlesBatches 
+            ? $this->messageConsumer->getBatchSize() 
+            : $this->streamOptions->pageSize;
 
-        $storedEvents = $this->eventReader->paginate(
+        $storedEvents = $this->getEventReader()->paginate(
             new AllStreamQuery(
                 fromPosition: $checkpoint->position,
-                limit: $processBatches ? $this->messageConsumer->getBatchSize() : $this->streamOptions->pageSize,
+                limit: $limit,
                 eventTypes: $this->streamOptions->eventTypes,
             ),
         );
@@ -113,7 +128,9 @@ final readonly class AllStreamSubscription
 
         $processBatches = $this->messageConsumer instanceof MessageConsumerThatHandlesBatches;
         if ($processBatches) {
-            $this->messageConsumer->beforeHandlingBatch();
+            /** @var MessageConsumerThatHandlesBatches $batchConsumer */
+            $batchConsumer = $this->messageConsumer;
+            $batchConsumer->beforeHandlingBatch();
         }
 
         $this->storeLog($log);
@@ -174,7 +191,9 @@ final readonly class AllStreamSubscription
         }
 
         if ($processBatches) {
-            $this->messageConsumer->afterHandlingBatch();
+            if ($this->messageConsumer instanceof MessageConsumerThatHandlesBatches) {
+                $this->messageConsumer->afterHandlingBatch();
+            }
         }
 
         if (isset($lastProcessedEvent) && $lastCommit !== $lastProcessedEvent->globalPosition) {

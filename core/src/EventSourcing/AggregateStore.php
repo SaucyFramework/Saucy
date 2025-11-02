@@ -6,6 +6,7 @@ use EventSauce\EventSourcing\AggregateRoot;
 use EventSauce\EventSourcing\AggregateRootId;
 use EventSauce\EventSourcing\Message;
 use Generator;
+use Illuminate\Support\Facades\Log;
 use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamNameMapper;
 use Saucy\Core\Serialisation\TypeMap;
@@ -15,9 +16,10 @@ use Symfony\Component\Uid\Ulid;
 final readonly class AggregateStore
 {
     public function __construct(
-        private AllStreamMessageRepository $messageRepository,
+        private EventStoreRegistry $eventStoreRegistry,
         private StreamNameMapper $streamNameMapper,
         private TypeMap $typeMap,
+        private AggregateEventStoreMap $aggregateEventStoreMap,
     ) {}
 
     /**
@@ -25,6 +27,8 @@ final readonly class AggregateStore
      */
     public function persist(AggregateRoot $aggregateRoot): void
     {
+        $messageRepository = $this->resolveStoreForAggregate(get_class($aggregateRoot));
+
         $streamName = $this->streamNameMapper->getStreamNameFor(
             $this->typeMap->instanceToType($aggregateRoot),
             $aggregateRoot->aggregateRootId()
@@ -48,7 +52,7 @@ final readonly class AggregateStore
             $events
         );
 
-        $this->messageRepository->persist($streamName, ...$streamEvents);
+        $messageRepository->persist($streamName, ...$streamEvents);
     }
 
     /**
@@ -59,16 +63,28 @@ final readonly class AggregateStore
      */
     public function retrieve(string $aggregateRootClass, AggregateRootId $aggregateRootId): AggregateRoot
     {
+        $messageRepository = $this->resolveStoreForAggregate($aggregateRootClass);
+
         $streamName = $this->streamNameMapper->getStreamNameFor(
             $this->typeMap->classNameToType($aggregateRootClass),
             $aggregateRootId
         );
 
         $events = $this->messagesToEvents(
-            streamEvents: $this->messageRepository->retrieveAllInStream($streamName)
+            streamEvents: $messageRepository->retrieveAllInStream($streamName)
         );
 
         return $aggregateRootClass::reconstituteFromEvents($aggregateRootId, $events);
+    }
+
+    /**
+     * @param class-string $aggregateRootClass
+     */
+    private function resolveStoreForAggregate(string $aggregateRootClass): AllStreamMessageRepository
+    {
+        return $this->eventStoreRegistry->get(
+            $this->aggregateEventStoreMap->getEventStoreId($aggregateRootClass)
+        );
     }
 
     /**

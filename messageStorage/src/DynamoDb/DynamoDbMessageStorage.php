@@ -12,18 +12,22 @@ use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\MessageStorage\AllStreamMessageRepository;
+use Saucy\MessageStorage\AllStreamQuery;
+use Saucy\MessageStorage\AllStreamReader;
+use Saucy\MessageStorage\ReadEventData;
 use Saucy\MessageStorage\StoredEvent;
 use Saucy\MessageStorage\StreamReader;
 use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\Serialization\SerializationResult;
 
-final readonly class DynamoDbMessageStorage implements AllStreamMessageRepository, StreamReader
+final readonly class DynamoDbMessageStorage implements AllStreamMessageRepository, StreamReader, AllStreamReader, ReadEventData
 {
     public function __construct(
         private DynamoDbClient $dynamoDbClient,
         private EventSerializer $eventSerializer,
         private TypeMap $streamNameTypeMap,
         private string $eventStoreTableName = 'event_store',
+        private AllStreamReader&ReadEventData $allStreamReader = new NoOpAllStream(),
     ) {}
 
     /**
@@ -298,5 +302,20 @@ final readonly class DynamoDbMessageStorage implements AllStreamMessageRepositor
             globalPosition: null,
             createdAt: new DateTimeImmutable($item['created_at']['S']),
         );
+    }
+
+    public function paginate(AllStreamQuery $streamQuery): Generator
+    {
+        return $this->allStreamReader->paginate($streamQuery);
+    }
+
+    public function maxEventId(): int
+    {
+        return $this->allStreamReader->maxEventId();
+    }
+
+    public function getForEventId(string $messageId): StoredEvent
+    {
+        return $this->allStreamReader->getForEventId($messageId);
     }
 }

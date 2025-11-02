@@ -31,6 +31,8 @@ use Saucy\Core\Subscriptions\Metrics\IlluminateActivityStreamLogger;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
+use Saucy\Core\EventSourcing\AggregateStore;
+use Saucy\Core\EventSourcing\EventStoreRegistry;
 use Saucy\Core\Tracing\TracePersistedEventsHook;
 use Saucy\Core\Tracing\Tracer;
 use Saucy\MessageStorage\AllStreamMessageRepository;
@@ -58,6 +60,30 @@ final class SaucyServiceProvider extends ServiceProvider
             BuildSaucyCache::class,
             EnsureDynamoDbTables::class,
         ]);
+
+        // Create hooks and replace default store
+        // Subscriptions resolve stores lazily, so stores can be registered at any time during boot
+        $eventStoreRegistry = $this->app->make(EventStoreRegistry::class);
+        $messageRepository = $this->app->make('saucy.message_repository');
+        $defaultStoreId = $this->app->make('saucy.default_store_id');
+
+        $defaultStoreWithHooks = new HooksMessageStore(
+            $messageRepository,
+            new Hooks(
+                $this->app->make(TriggerSubscriptionProcessesAfterPersist::class),
+                $this->app->make(PlaySynchronousProjectorsAfterPersist::class),
+                $this->app->make(TracePersistedEventsHook::class),
+            ),
+        );
+
+        // Replace the default store with the one that has hooks
+        $eventStoreRegistry->register(
+            id: $defaultStoreId,
+            store: $defaultStoreWithHooks,
+            streamReader: $messageRepository,
+            allStreamReader: $messageRepository,
+            readEventData: $messageRepository,
+        );
     }
 
     public function register(): void
@@ -81,6 +107,10 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->instance(TypeMap::class, $typeMap);
 
+        $this->app->instance(StreamNameMapper::class, new AggregateRootStreamNameMapper());
+
+        $this->app->instance(EventSerializer::class, new ConstructingPayloadSerializer($this->app->make(TypeMap::class)));
+
         $this->app->scoped(Tracer::class, fn() => new Tracer());
 
         $this->app->bind(RunningProcesses::class, function (Application $application) {
@@ -99,6 +129,11 @@ final class SaucyServiceProvider extends ServiceProvider
             return $application->make(IlluminateActivityStreamLogger::class);
         });
 
+        // Create EventStoreRegistry
+        $eventStoreRegistry = new EventStoreRegistry();
+        $this->app->instance(EventStoreRegistry::class, $eventStoreRegistry);
+
+        // Register default event store (without hooks initially, hooks depend on subscription registries)
         $messageRepository = new IlluminateMessageStorage(
             connection: $this->app->make(DatabaseManager::class)->connection(),
             eventSerializer: new ConstructingPayloadSerializer($this->app->make(TypeMap::class)),
@@ -106,18 +141,29 @@ final class SaucyServiceProvider extends ServiceProvider
             tableName: 'event_store',
         );
 
-        $this->app->bind(ReadEventData::class, fn() => $messageRepository);
-        $this->app->bind(AllStreamReader::class, fn() => $messageRepository);
-        $this->app->bind(StreamReader::class, fn() => $messageRepository);
+        $defaultStoreId = config('saucy.default_event_store', 'default');
+        // Register the basic store first (subscriptions need it to exist)
+        $eventStoreRegistry->register(
+            id: $defaultStoreId,
+            store: $messageRepository,
+            streamReader: $messageRepository,
+            allStreamReader: $messageRepository,
+            readEventData: $messageRepository,
+        );
+        $eventStoreRegistry->setDefault($defaultStoreId);
 
-        $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($messageRepository) {
-            return new HooksMessageStore(
-                $messageRepository,
-                new Hooks(
-                    $application->make(TriggerSubscriptionProcessesAfterPersist::class),
-                    $application->make(PlaySynchronousProjectorsAfterPersist::class),
-                    $application->make(TracePersistedEventsHook::class),
-                ),
+        // Backward compatibility: bind default store implementations
+        $this->app->bind(ReadEventData::class, fn() => $messageRepository);
+        $this->app->bind(AllStreamReader::class, fn() => $eventStoreRegistry->getAllStreamReader(null));
+        $this->app->bind(StreamReader::class, fn() => $eventStoreRegistry->getStreamReader(null));
+
+        // Bind AggregateStore to use EventStoreRegistry
+        $this->app->bind(AggregateStore::class, function (Application $application) use ($eventStoreRegistry, $saucyProjectMaps) {
+            return new AggregateStore(
+                eventStoreRegistry: $eventStoreRegistry,
+                streamNameMapper: $application->make(StreamNameMapper::class),
+                typeMap: $application->make(TypeMap::class),
+                aggregateEventStoreMap: $saucyProjectMaps->aggregateEventStoreMap,
             );
         });
 
@@ -125,6 +171,7 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $projectorMap = $saucyProjectMaps->projectorMap;
 
+        // Bind subscription registries (they can now use the default store)
         $this->app->bind(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
@@ -137,7 +184,16 @@ final class SaucyServiceProvider extends ServiceProvider
             ...SubscriptionRegistryFactory::buildSyncStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
-        $this->app->instance(StreamNameMapper::class, new AggregateRootStreamNameMapper());
+        // Defer hook creation to boot() method so all service providers have registered their bindings first
+        // Store the messageRepository and eventStoreRegistry for use in boot()
+        $this->app->instance('saucy.message_repository', $messageRepository);
+        $this->app->instance('saucy.default_store_id', $defaultStoreId);
+
+        // Add helper method for registering additional event stores
+        // Users can call: app(EventStoreRegistry::class)->register(...)
+
+        // Bind AllStreamMessageRepository to default store with hooks for backward compatibility
+        $this->app->bind(AllStreamMessageRepository::class, fn() => $eventStoreRegistry->getDefault());
 
         $commandTaskMap = $saucyProjectMaps->commandTaskMap;
 
@@ -162,6 +218,6 @@ final class SaucyServiceProvider extends ServiceProvider
             ),
         );
 
-        $this->app->instance(EventSerializer::class, new ConstructingPayloadSerializer($this->app->make(TypeMap::class)));
+
     }
 }

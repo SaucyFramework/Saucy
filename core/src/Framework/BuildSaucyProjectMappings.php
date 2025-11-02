@@ -44,16 +44,21 @@ final readonly class BuildSaucyProjectMappings
             ->exclude(...config('saucy.exclude_files', ['*Test.php', '*/Tests/*', '*TestCase.php']))
             ->findClassNames(); // @phpstan-ignore-line
 
+        $aggregateRootTypeMapBuilder = AggregateRootTypeMapBuilder::make();
+
         // build type map
         $typeMap = TypeMap::of(
-            AggregateRootTypeMapBuilder::make()->create($classes),
+            $aggregateRootTypeMapBuilder->create($classes),
             EventTypeMapBuilder::make()->create($classes),
             new TypeMap([
                 AggregateStreamName::class => 'aggregate_stream_name',
             ]),
         );
 
-        $projectorMap = ProjectorMapBuilder::buildForClasses($classes, $typeMap);
+        // build event store map
+        $aggregateEventStoreMap = $aggregateRootTypeMapBuilder->createEventStoreMap($classes);
+
+        $projectorMap = ProjectorMapBuilder::buildForClasses($classes, $typeMap, $aggregateEventStoreMap);
 
         $commandTaskMap = EventSourcingCommandMapBuilder::buildTaskMapForClasses($classes);
 
@@ -64,6 +69,7 @@ final readonly class BuildSaucyProjectMappings
             projectorMap: $projectorMap,
             commandTaskMap: $commandTaskMap,
             queryMap: $queryMap,
+            aggregateEventStoreMap: $aggregateEventStoreMap,
         );
     }
 

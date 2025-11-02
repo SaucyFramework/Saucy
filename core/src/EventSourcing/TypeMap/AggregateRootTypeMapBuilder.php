@@ -5,6 +5,7 @@ namespace Saucy\Core\EventSourcing\TypeMap;
 use ReflectionClass;
 use Robertbaelde\AttributeFinder\AttributeFinder;
 use Saucy\Core\EventSourcing\Aggregate;
+use Saucy\Core\EventSourcing\AggregateEventStoreMap;
 use Saucy\Core\Serialisation\TypeMap;
 
 final readonly class AggregateRootTypeMapBuilder
@@ -32,6 +33,22 @@ final readonly class AggregateRootTypeMapBuilder
             $classMap[$classAttribute->class] = $attribute->name ?? ($this->allowsMissingAggregateName ? $this->getNameFromClass($classAttribute->class) : throw new \Exception('Aggregate name is required for ' . $classAttribute->class));
         }
         return new TypeMap($classMap);
+    }
+
+    /**
+     * @param array<class-string> $classes
+     */
+    public function createEventStoreMap(array $classes): AggregateEventStoreMap
+    {
+        $eventStoreMap = [];
+        foreach(AttributeFinder::inClasses($classes)->withName(Aggregate::class)->findClassAttributes() as $classAttribute) {
+            $attribute = $classAttribute->attribute;
+            if (!$attribute instanceof Aggregate) {
+                continue;
+            }
+            $eventStoreMap[$classAttribute->class] = $attribute->eventStore;
+        }
+        return new AggregateEventStoreMap($eventStoreMap);
     }
 
     /**

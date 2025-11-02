@@ -139,7 +139,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
 
     public function getForEventId(string $messageId): StoredEvent
     {
-        $row = DB::table('event_store')
+        $row = DB::table($this->tableName)
             ->where('message_id', $messageId)
             ->first();
 
@@ -168,6 +168,6 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
 
     public function maxStreamPosition(StreamName $streamName): int
     {
-        return DB::table($this->tableName)->where('stream_name', $streamName->toString())->max('stream_position');
+        return DB::table($this->tableName)->where('stream_name', $streamName->toString())->max('stream_position') ?? 0;
     }
 }
