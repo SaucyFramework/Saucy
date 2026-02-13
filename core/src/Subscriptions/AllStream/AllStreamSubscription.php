@@ -11,6 +11,10 @@ use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatHandlesBatche
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatResetsBeforeReplay;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\SubscriptionActivity;
+use Saucy\Core\Subscriptions\PoisonMessages\EventHandlerWithRetry;
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\MessageStorage\AllStreamQuery;
 use Saucy\MessageStorage\AllStreamReader;
@@ -29,6 +33,9 @@ final readonly class AllStreamSubscription
         public CheckpointStore $checkpointStore,
         public TypeMap $streamNameTypeMap,
         public ActivityStreamLogger $activityStreamLogger,
+        public FailureMode $failureMode = FailureMode::Halt,
+        public ?PoisonMessageStore $poisonMessageStore = null,
+        public ?PoisonMessageRecorder $poisonMessageRecorder = null,
     ) {}
 
     public function isUpToDate(?int $upToPosition): bool
@@ -122,6 +129,9 @@ final readonly class AllStreamSubscription
 
         $timePerMessageType = [];
 
+        /** @var array<string, true> $pausedStreams */
+        $pausedStreams = [];
+
         foreach ($storedEvents as $storedEvent) {
             if ((time() - $startTime) >= $timeoutInSeconds) {
                 $queueTimedOut = true;
@@ -133,9 +143,49 @@ final readonly class AllStreamSubscription
                 ]);
                 break;
             }
+
+            // In PauseStream mode, skip events from streams that are paused
+            if ($this->failureMode === FailureMode::PauseStream && $this->isStreamPaused($storedEvent->streamName, $pausedStreams)) {
+                $lastProcessedEvent = $storedEvent;
+                $messageCount += 1;
+                continue;
+            }
+
             $startTimeHandleMessage = microtime(true);
 
-            $this->messageConsumer->handle($this->storedMessageToContext($storedEvent));
+            $retryResult = EventHandlerWithRetry::handle(
+                $this->messageConsumer,
+                $this->storedMessageToContext($storedEvent),
+            );
+
+            if ($retryResult !== null) {
+                $this->poisonMessageRecorder?->record(
+                    $this->subscriptionId,
+                    $storedEvent,
+                    $retryResult->exception,
+                    $retryResult->retryCount,
+                );
+
+                $this->appendToActivity($log, 'poison_message', 'event marked as poison', [
+                    'global_position' => $storedEvent->globalPosition,
+                    'stream_name' => $storedEvent->streamName,
+                    'event_type' => $storedEvent->eventType,
+                    'failure_mode' => $this->failureMode->value,
+                    'error' => $retryResult->exception->getMessage(),
+                    'run_time' => time() - $startTime,
+                ]);
+
+                match ($this->failureMode) {
+                    FailureMode::Halt => throw $retryResult->exception,
+                    FailureMode::PauseStream => $pausedStreams[$storedEvent->streamName] = true,
+                    FailureMode::SkipMessage => null,
+                };
+
+                // For non-halt modes, treat this event as "processed" for checkpoint purposes
+                $lastProcessedEvent = $storedEvent;
+                $messageCount += 1;
+                continue;
+            }
 
             $processingTime = microtime(true) - $startTimeHandleMessage;
 
@@ -246,6 +296,22 @@ final readonly class AllStreamSubscription
         );
     }
 
+    /**
+     * @param array<string, true> $pausedStreams
+     */
+    private function isStreamPaused(string $streamName, array $pausedStreams): bool
+    {
+        if (isset($pausedStreams[$streamName])) {
+            return true;
+        }
+
+        if ($this->poisonMessageStore === null) {
+            return false;
+        }
+
+        return $this->poisonMessageStore->hasUnresolvedForStream($this->subscriptionId, $streamName);
+    }
+
     private function appendToActivity(array &$log, string $type, string $message, array $data = []): void
     {
         $log[] = new SubscriptionActivity(
@@ -262,6 +328,4 @@ final readonly class AllStreamSubscription
         $this->activityStreamLogger->log(...$log);
         $log = [];
     }
-
-
 }

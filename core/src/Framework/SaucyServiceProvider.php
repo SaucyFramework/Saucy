@@ -12,6 +12,7 @@ use Saucy\Core\Command\TaskMapCommandHandler;
 use Saucy\Core\Events\Streams\AggregateRootStreamNameMapper;
 use Saucy\Core\Events\Streams\StreamNameMapper;
 use Saucy\Core\Laravel\Commands\BuildSaucyCache;
+use Saucy\Core\Laravel\Commands\PoisonMessagesCommand;
 use Saucy\Core\Projections\AwaitProjected;
 use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlingMiddleware;
@@ -27,6 +28,10 @@ use Saucy\Core\Subscriptions\Infra\SubscriptionRegistryFactory;
 use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\IlluminateActivityStreamLogger;
+use Saucy\Core\Subscriptions\PoisonMessages\IlluminatePoisonMessageStore;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageManager;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
@@ -55,6 +60,7 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->commands([
             BuildSaucyCache::class,
+            PoisonMessagesCommand::class,
         ]);
     }
 
@@ -96,6 +102,28 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->app->bind(ActivityStreamLogger::class, function (Application $application) {
             return $application->make(IlluminateActivityStreamLogger::class);
         });
+
+        $this->app->bind(PoisonMessageStore::class, function (Application $application) {
+            return new IlluminatePoisonMessageStore(
+                $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        $this->app->bind(PoisonMessageRecorder::class, function (Application $application) {
+            $notifiable = null;
+            /** @var class-string|null $notifiableClass */
+            $notifiableClass = config('saucy.poison_messages.notification.notifiable');
+            if ($notifiableClass !== null) {
+                $notifiable = $application->make($notifiableClass);
+            }
+
+            return new PoisonMessageRecorder(
+                $application->make(PoisonMessageStore::class),
+                $notifiable,
+            );
+        });
+
+        $this->app->bind(PoisonMessageManager::class);
 
         $messageRepository = new IlluminateMessageStorage(
             connection: $this->app->make(DatabaseManager::class)->connection(),

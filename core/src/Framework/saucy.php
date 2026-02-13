@@ -24,4 +24,12 @@ return [
         'queue' => 'projections',
         'keep_processing_without_new_messages_before_stop_in_seconds' => 5,
     ],
+
+    'poison_messages' => [
+        'notification' => [
+            // Set to a notifiable class to receive notifications when messages are poisoned.
+            // The class should use the Illuminate\Notifications\Notifiable trait.
+            'notifiable' => null,
+        ],
+    ],
 ];

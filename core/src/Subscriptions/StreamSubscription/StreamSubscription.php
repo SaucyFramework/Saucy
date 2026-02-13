@@ -8,6 +8,9 @@ use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
+use Saucy\Core\Subscriptions\PoisonMessages\EventHandlerWithRetry;
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\MessageStorage\StreamReader;
 use Saucy\MessageStorage\Serialization\EventSerializer;
@@ -26,6 +29,8 @@ final readonly class StreamSubscription
         public EventSerializer $eventSerializer,
         public CheckpointStore $checkpointStore,
         public TypeMap $streamNameTypeMap,
+        public FailureMode $failureMode = FailureMode::Halt,
+        public ?PoisonMessageRecorder $poisonMessageRecorder = null,
     ) {}
 
     public function poll(StreamName $streamName): int
@@ -44,8 +49,34 @@ final readonly class StreamSubscription
         $messageCount = 0;
         $lastCommit = 0;
 
+        // For StreamSubscription, PauseStream behaves as Halt (single stream)
+        $effectiveFailureMode = $this->failureMode === FailureMode::PauseStream
+            ? FailureMode::Halt
+            : $this->failureMode;
+
         foreach ($storedEvents as $storedEvent) {
-            $this->messageConsumer->handle($this->storedMessageToContext($storedEvent));
+            $retryResult = EventHandlerWithRetry::handle(
+                $this->messageConsumer,
+                $this->storedMessageToContext($storedEvent),
+            );
+
+            if ($retryResult !== null) {
+                $this->poisonMessageRecorder?->record(
+                    $this->subscriptionId,
+                    $storedEvent,
+                    $retryResult->exception,
+                    $retryResult->retryCount,
+                );
+
+                match ($effectiveFailureMode) {
+                    FailureMode::Halt, FailureMode::PauseStream => throw $retryResult->exception,
+                    FailureMode::SkipMessage => null,
+                };
+
+                $messageCount += 1;
+                continue;
+            }
+
             $messageCount += 1;
             // if batch size reached, commit
             if($messageCount === $this->streamOptions->commitBatchSize) {
