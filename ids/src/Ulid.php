@@ -10,7 +10,7 @@ abstract readonly class Ulid implements AggregateRootId
 {
     private function __construct(private string $id)
     {
-        if(!UlidGenerator::isValid($id)) {
+        if (!UlidGenerator::isValid($id)) {
             throw new \InvalidArgumentException('Invalid ulid');
         }
     }

@@ -8,6 +8,8 @@ use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
+use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
+use Saucy\Core\Subscriptions\Metrics\SubscriptionActivity;
 use Saucy\Core\Subscriptions\PoisonMessages\EventHandlerWithRetry;
 use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
@@ -31,11 +33,18 @@ final readonly class StreamSubscription
         public TypeMap $streamNameTypeMap,
         public FailureMode $failureMode = FailureMode::Halt,
         public ?PoisonMessageRecorder $poisonMessageRecorder = null,
+        public ?ActivityStreamLogger $activityStreamLogger = null,
     ) {}
 
     public function poll(StreamName $streamName): int
     {
+        $log = [];
         $streamIdentifier = $this->getId($streamName);
+
+        $this->appendToActivity($log, 'started_poll', 'started poll', [
+            'stream_name' => $streamName->toString(),
+        ]);
+
         try {
             $checkpoint = $this->checkpointStore->get($streamIdentifier);
         } catch (Checkpoints\CheckpointNotFound $e) {
@@ -54,6 +63,8 @@ final readonly class StreamSubscription
             ? FailureMode::Halt
             : $this->failureMode;
 
+        $this->storeLog($log);
+
         foreach ($storedEvents as $storedEvent) {
             $retryResult = EventHandlerWithRetry::handle(
                 $this->messageConsumer,
@@ -68,6 +79,14 @@ final readonly class StreamSubscription
                     $retryResult->retryCount,
                 );
 
+                $this->appendToActivity($log, 'poison_message', 'event marked as poison', [
+                    'stream_position' => $storedEvent->streamPosition,
+                    'stream_name' => $storedEvent->streamName,
+                    'event_type' => $storedEvent->eventType,
+                    'failure_mode' => $this->failureMode->value,
+                    'error' => $retryResult->exception->getMessage(),
+                ]);
+
                 match ($effectiveFailureMode) {
                     FailureMode::Halt, FailureMode::PauseStream => throw $retryResult->exception,
                     FailureMode::SkipMessage => null,
@@ -79,20 +98,31 @@ final readonly class StreamSubscription
 
             $messageCount += 1;
             // if batch size reached, commit
-            if($messageCount === $this->streamOptions->commitBatchSize) {
+            if ($messageCount === $this->streamOptions->commitBatchSize) {
+                $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint', [
+                    'position' => $storedEvent->streamPosition,
+                ]);
                 $this->checkpointStore->store($checkpoint->withPosition($storedEvent->streamPosition));
+                $this->storeLog($log);
                 $lastCommit = $storedEvent->streamPosition;
             }
         }
 
-        if(isset($storedEvent) && $lastCommit !== $storedEvent->streamPosition) {
+        if (isset($storedEvent) && $lastCommit !== $storedEvent->streamPosition) {
+            $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, end of loop', [
+                'position' => $storedEvent->streamPosition,
+            ]);
             $this->checkpointStore->store($checkpoint->withPosition($storedEvent->streamPosition));
         }
 
-        if($messageCount === 0) {
+        if ($messageCount === 0) {
+            $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, 0 handled', [
+                'position' => $maxPosition,
+            ]);
             $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
         }
 
+        $this->storeLog($log);
         return $messageCount;
     }
 
@@ -127,5 +157,31 @@ final readonly class StreamSubscription
     public function getId(StreamName $streamName): string
     {
         return $this->subscriptionId . '_' . $streamName->toString();
+    }
+
+    /**
+     * @param array<SubscriptionActivity> $log
+     * @param array<string, mixed> $data
+     */
+    private function appendToActivity(array &$log, string $type, string $message, array $data = []): void
+    {
+        $log[] = new SubscriptionActivity(
+            streamId: $this->subscriptionId,
+            type: $type,
+            message: $message,
+            occurredAt: new \DateTime('now'),
+            data: $data,
+        );
+    }
+
+    /**
+     * @param array<SubscriptionActivity> $log
+     */
+    private function storeLog(array &$log): void
+    {
+        if ($log !== [] && $this->activityStreamLogger !== null) {
+            $this->activityStreamLogger->log(...$log);
+        }
+        $log = [];
     }
 }

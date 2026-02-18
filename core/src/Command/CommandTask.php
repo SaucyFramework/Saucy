@@ -30,7 +30,7 @@ final readonly class CommandTask implements SerializablePayload
                 InvokableClass::class => $this->taskLocation->toPayload(),
                 StaticClassMethod::class => $this->taskLocation->toPayload(),
             },
-            'taskLocationClass' => $this->taskLocation::Class,
+            'taskLocationClass' => $this->taskLocation::class,
             'metaData' => $this->metaData,
         ];
     }

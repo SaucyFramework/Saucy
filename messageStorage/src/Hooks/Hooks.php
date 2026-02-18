@@ -13,7 +13,7 @@ final readonly class Hooks implements Hook
     private array $hooks;
 
     public function __construct(
-        Hook ...$hooks
+        Hook ...$hooks,
     ) {
         $this->hooks = $hooks;
     }

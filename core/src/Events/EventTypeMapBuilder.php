@@ -18,7 +18,7 @@ final readonly class EventTypeMapBuilder
     public function create(array $classes): TypeMap
     {
         $classMap = [];
-        foreach(AttributeFinder::inClasses($classes)->withName(Event::class)->findClassAttributes() as $classAttribute) {
+        foreach (AttributeFinder::inClasses($classes)->withName(Event::class)->findClassAttributes() as $classAttribute) {
             $attribute = $classAttribute->attribute;
             // should not be required, but makes PhpStan happy
             if (!$attribute instanceof Event) {

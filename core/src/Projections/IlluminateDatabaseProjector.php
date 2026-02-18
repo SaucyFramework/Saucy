@@ -27,7 +27,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
      */
     protected function upsert(array $data): void
     {
-        if($this->queryBuilder->exists()) {
+        if ($this->queryBuilder->exists()) {
             $this->update($data);
             return;
         }
@@ -62,7 +62,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
     protected function find(): ?array
     {
         $row = $this->queryBuilder->clone()->first();
-        if($row === null) {
+        if ($row === null) {
             return null;
         }
         return get_object_vars($row);
@@ -87,7 +87,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
 
     protected function scopeAggregate(string|AggregateRootId $aggregateRootId): void
     {
-        if($aggregateRootId instanceof AggregateRootId) {
+        if ($aggregateRootId instanceof AggregateRootId) {
             $aggregateRootId = $aggregateRootId->toString();
         }
         $this->scopedAggregateRootId = $aggregateRootId;
@@ -97,7 +97,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
     public function handle(MessageConsumeContext $context): void
     {
         $this->queryBuilder = $this->connection->table($this->tableName());
-        if(!$context->streamName instanceof AggregateStreamName) {
+        if (!$context->streamName instanceof AggregateStreamName) {
             throw new Exception('Can only use this projector with aggregate root streams');
         }
         $this->scopeAggregate($context->streamName->aggregateRootIdAsString());
@@ -115,7 +115,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
             });
         } catch (\PDOException $e) {
             // race condition, table already exists
-            if($e->getCode() === '42S01') {
+            if ($e->getCode() === '42S01') {
                 return;
             }
             throw $e;

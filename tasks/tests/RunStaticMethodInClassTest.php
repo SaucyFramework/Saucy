@@ -25,7 +25,7 @@ final class RunStaticMethodInClassTest extends TestCase
 
         $taskLocation = new StaticClassMethod(
             className: StubClass::class,
-            methodName: 'staticMethodWithoutArguments'
+            methodName: 'staticMethodWithoutArguments',
         );
 
         $taskRunner = new TaskRunner($container);
@@ -44,7 +44,7 @@ final class RunStaticMethodInClassTest extends TestCase
 
         $taskLocation = new StaticClassMethod(
             className: StubClass::class,
-            methodName: 'staticMethodWithArguments'
+            methodName: 'staticMethodWithArguments',
         );
 
         $taskRunner = new TaskRunner($container);

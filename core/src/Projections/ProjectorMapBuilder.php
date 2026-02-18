@@ -16,12 +16,12 @@ final readonly class ProjectorMapBuilder
     {
         $attributes = AttributeFinder::inClasses($classes)->withNames(
             Projector::class,
-            AggregateProjector::class
+            AggregateProjector::class,
         )->findAll();
 
         $projectors = [];
         foreach ($attributes as $attribute) {
-            if(!$attribute instanceof ClassAttribute) {
+            if (!$attribute instanceof ClassAttribute) {
                 throw new \Exception('Class ' . $attribute->class . ' is annotated with ' . Projector::class . ' but is not annotating a class');
             }
 

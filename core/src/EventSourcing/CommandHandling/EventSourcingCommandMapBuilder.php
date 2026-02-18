@@ -21,7 +21,7 @@ final readonly class EventSourcingCommandMapBuilder
     public static function buildTaskMapForClasses(array $classes): CommandTaskMap
     {
         $map = [];
-        foreach($classes as $class) {
+        foreach ($classes as $class) {
             if (!class_exists($class)) {
                 continue;
             }
@@ -32,7 +32,7 @@ final readonly class EventSourcingCommandMapBuilder
             foreach ($methods as $method) {
                 $attributes = $method->getAttributes(CommandHandler::class);
 
-                if(count($attributes) === 0) {
+                if (count($attributes) === 0) {
                     continue;
                 }
 
@@ -40,22 +40,22 @@ final readonly class EventSourcingCommandMapBuilder
                 $attribute = $attributes[0]->newInstance();
 
                 $handlingCommandReflectionType = $method->getParameters()[0]->getType();
-                if(!$handlingCommandReflectionType instanceof ReflectionNamedType) {
-                    if($handlingCommandReflectionType instanceof ReflectionUnionType) {
+                if (!$handlingCommandReflectionType instanceof ReflectionNamedType) {
+                    if ($handlingCommandReflectionType instanceof ReflectionUnionType) {
                         throw new \Exception("Union command handlers not yet supported");
                     }
-                    if($handlingCommandReflectionType instanceof \ReflectionIntersectionType) {
+                    if ($handlingCommandReflectionType instanceof \ReflectionIntersectionType) {
                         throw new \Exception("Intersection type as command arguments are not supported");
                     }
                     throw new \Exception("Method '$class@{$method->getName()}' marked with CommandHandler attribute doesnt have a command as first argument");
                 }
 
                 $handlingCommand = $handlingCommandReflectionType->getName();
-                if(!class_exists($handlingCommand)) {
+                if (!class_exists($handlingCommand)) {
                     throw new \Exception("Method '$class@{$method->getName()}' marked with CommandHandler attribute doesnt have a command as first argument");
                 }
 
-                if(array_key_exists($handlingCommand, $map)) {
+                if (array_key_exists($handlingCommand, $map)) {
                     throw new \Exception('Command ' . $handlingCommand . ' is already handled by ' . $map[$handlingCommand]->containerIdentifier . '::' . $map[$handlingCommand]->methodName); // @phpstan-ignore-line
                 }
 
@@ -63,7 +63,7 @@ final readonly class EventSourcingCommandMapBuilder
 
                 $aggregateRoot = $reflection->getAttributes(Aggregate::class);
 
-                if(count($aggregateRoot) === 0) {
+                if (count($aggregateRoot) === 0) {
                     $map[$handlingCommand] = new CommandTask($handlingCommand, TaskBuilder::fromReflectionMethod($method));
                     continue;
                 }
@@ -71,13 +71,13 @@ final readonly class EventSourcingCommandMapBuilder
                 // handler is defined as aggregate root, configure aggregate root command handler
                 /** @var Aggregate $aggregateRoot */
                 $aggregateRoot = $aggregateRoot[0]->newInstance();
-                if($aggregateRoot->aggregateIdClass !== null) {
+                if ($aggregateRoot->aggregateIdClass !== null) {
                     foreach ($commandReflection->getProperties() as $property) {
                         $propertyType = $property->getType();
-                        if(!$propertyType instanceof ReflectionNamedType) {
+                        if (!$propertyType instanceof ReflectionNamedType) {
                             continue;
                         }
-                        if($propertyType->getName() === $aggregateRoot->aggregateIdClass) {
+                        if ($propertyType->getName() === $aggregateRoot->aggregateIdClass) {
                             $map[$handlingCommand] = new CommandTask(
                                 $handlingCommand,
                                 /**
@@ -90,7 +90,7 @@ final readonly class EventSourcingCommandMapBuilder
                                     EventSourcingCommandHandler::AGGREGATE_ROOT_ID_PROPERTY => $property->getName(),
                                     EventSourcingCommandHandler::AGGREGATE_METHOD => $method->getName(),
                                     EventSourcingCommandHandler::COMMAND_ARGUMENT_NAME => $method->getParameters()[0]->getName(),
-                                ]
+                                ],
                             );
                             continue 2;
                         }

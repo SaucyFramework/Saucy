@@ -54,7 +54,7 @@ final readonly class EventSourcingCommandHandler
 
         $tries = 0;
 
-        while(true) {
+        while (true) {
             $aggregate = $this->eventSourcingRepository->retrieve($aggregateRootClass, $aggregateRootId);
             try {
                 try {
@@ -102,7 +102,7 @@ final readonly class EventSourcingCommandHandler
         }
 
         $aggregateRootClass = $metaData[self::AGGREGATE_ROOT_CLASS];
-        if(array_key_exists(self::COMMAND_ARGUMENT_NAME, $metaData)) {
+        if (array_key_exists(self::COMMAND_ARGUMENT_NAME, $metaData)) {
             $aggregate = app()->call([$aggregateRootClass, $metaData[self::AGGREGATE_METHOD]], [$metaData[self::COMMAND_ARGUMENT_NAME] => $message]);
         } else {
             $aggregate = $aggregateRootClass::{$metaData[self::AGGREGATE_METHOD]}($message);

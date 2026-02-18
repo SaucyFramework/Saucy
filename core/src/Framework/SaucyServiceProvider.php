@@ -13,6 +13,7 @@ use Saucy\Core\Events\Streams\AggregateRootStreamNameMapper;
 use Saucy\Core\Events\Streams\StreamNameMapper;
 use Saucy\Core\Laravel\Commands\BuildSaucyCache;
 use Saucy\Core\Laravel\Commands\PoisonMessagesCommand;
+use Saucy\Core\Laravel\Commands\SnapshotPositionsCommand;
 use Saucy\Core\Projections\AwaitProjected;
 use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlingMiddleware;
@@ -28,6 +29,8 @@ use Saucy\Core\Subscriptions\Infra\SubscriptionRegistryFactory;
 use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\IlluminateActivityStreamLogger;
+use Saucy\Core\Subscriptions\Metrics\IlluminateProjectionSnapshotStore;
+use Saucy\Core\Subscriptions\Metrics\ProjectionSnapshotStore;
 use Saucy\Core\Subscriptions\PoisonMessages\IlluminatePoisonMessageStore;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageManager;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
@@ -61,6 +64,7 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->commands([
             BuildSaucyCache::class,
             PoisonMessagesCommand::class,
+            SnapshotPositionsCommand::class,
         ]);
     }
 
@@ -101,6 +105,10 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->bind(ActivityStreamLogger::class, function (Application $application) {
             return $application->make(IlluminateActivityStreamLogger::class);
+        });
+
+        $this->app->bind(ProjectionSnapshotStore::class, function (Application $application) {
+            return $application->make(IlluminateProjectionSnapshotStore::class);
         });
 
         $this->app->bind(PoisonMessageStore::class, function (Application $application) {

@@ -12,7 +12,5 @@ final readonly class RunningProcess
         public ?string $pausedReason = null,
         public ?string $status = null,
         public ?\DateTime $lastStatusAt = null,
-
-    ) {
-    }
+    ) {}
 }

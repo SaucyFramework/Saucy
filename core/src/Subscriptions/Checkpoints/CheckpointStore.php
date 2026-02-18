@@ -12,4 +12,9 @@ interface CheckpointStore
     public function get(string $streamIdentifier): Checkpoint;
 
     public function store(Checkpoint $checkpoint): void;
+
+    /**
+     * @return array<Checkpoint>
+     */
+    public function getAll(): array;
 }

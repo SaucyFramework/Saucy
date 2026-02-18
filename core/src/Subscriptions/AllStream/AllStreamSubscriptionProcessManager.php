@@ -49,10 +49,10 @@ final readonly class AllStreamSubscriptionProcessManager
     {
         // start all streams as processes
         foreach ($this->allStreamSubscriptionRegistry->streams as $stream) {
-            if($stream->streamOptions->eventTypes === null) {
+            if ($stream->streamOptions->eventTypes === null) {
                 continue;
             }
-            if(count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0) {
+            if (count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0) {
                 continue;
             }
             $this->startStreamIfNotRunning($stream);
@@ -103,7 +103,7 @@ final readonly class AllStreamSubscriptionProcessManager
 
     private function startStreamIfNotRunning(AllStreamSubscription $stream): void
     {
-        if($this->runningProcesses->isActive($stream->subscriptionId)) {
+        if ($this->runningProcesses->isActive($stream->subscriptionId)) {
             return;
         }
 
@@ -112,14 +112,14 @@ final readonly class AllStreamSubscriptionProcessManager
             $this->runningProcesses->start(
                 $stream->subscriptionId,
                 $processId,
-                (new DateTime('now'))->add($stream->streamOptions->processTimeoutInSeconds !== null ? new DateInterval("PT{$stream->streamOptions->processTimeoutInSeconds}S") : $this->defaultProcessTimeout)
+                (new DateTime('now'))->add($stream->streamOptions->processTimeoutInSeconds !== null ? new DateInterval("PT{$stream->streamOptions->processTimeoutInSeconds}S") : $this->defaultProcessTimeout),
             );
         } catch (StartProcessException $exception) {
             // process already running, stop execution
             return;
         }
 
-        if(!$this->runSync->isRunSync($stream->messageConsumer)) {
+        if (!$this->runSync->isRunSync($stream->messageConsumer)) {
             AllStreamPollSubscriptionJob::dispatch($stream->subscriptionId, $processId)->onQueue($stream->streamOptions->queue);
             return;
         }

@@ -12,8 +12,8 @@ use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\MessageStorage\Serialization\EventSerializer;
 use Saucy\MessageStorage\Serialization\SerializationResult;
-
 use App\Components\Api\EventData;
+
 final readonly class IlluminateMessageStorage implements AllStreamMessageRepository, AllStreamReader, StreamReader, ReadEventData
 {
     public function __construct(
@@ -44,8 +44,8 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                         'created_at' => now(),
                     ];
                 },
-                $events
-            )
+                $events,
+            ),
         );
     }
 
@@ -74,7 +74,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             })
             ->limit($streamQuery->limit)
             ->orderBy('global_position')
-            ->cursor()
+            ->cursor(),
         );
     }
 
@@ -91,7 +91,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                     new SerializationResult(
                         eventType: $row->message_type, // @phpstan-ignore-line
                         payload: $row->payload, // @phpstan-ignore-line
-                    )
+                    ),
                 ),
                 metadata: json_decode($row->metadata, true), // @phpstan-ignore-line
                 position: $row->stream_position, // @phpstan-ignore-line
@@ -134,7 +134,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                 ->where('stream_name', $streamName->toString())
                 ->where('stream_position', '>', $position)
                 ->orderBy('stream_position')
-                ->cursor()
+                ->cursor(),
         );
     }
 
@@ -144,7 +144,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             ->where('message_id', $messageId)
             ->first();
 
-        if($row === null) {
+        if ($row === null) {
             throw new \Exception("Event not found");
         }
 
