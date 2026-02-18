@@ -49,27 +49,32 @@ final class StreamPollSubscriptionJob implements ShouldQueue
         RunningProcesses $runningProcesses,
     ): void {
         $subscription = $subscriptionRegistry->get($this->subscriptionId);
-        $this->runSubscription($subscription, $runningProcesses);
+        try {
+            $this->runSubscription($subscription, $runningProcesses);
+        } catch (\Throwable $e) {
+            $runningProcesses->stop($this->processId);
+            throw $e;
+        }
     }
 
     private function runSubscription(StreamSubscription $subscription, RunningProcesses $runningProcesses): void
     {
         $streamId = $subscription->getId($this->streamName);
-        if(!$runningProcesses->isActive($streamId, $this->processId)) {
+        if (!$runningProcesses->isActive($streamId, $this->processId)) {
             $runningProcesses->stop($this->processId);
             return;
         }
 
         $messagesHandled = $subscription->poll($this->streamName);
 
-        if($messagesHandled === 0) {
+        if ($messagesHandled === 0) {
 
-            if(!isset($this->timestampZeroMessagesHandled)) {
+            if (!isset($this->timestampZeroMessagesHandled)) {
                 $this->timestampZeroMessagesHandled = time();
             }
 
 
-            if(time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
+            if (time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
                 $runningProcesses->stop($this->processId);
                 return;
             }

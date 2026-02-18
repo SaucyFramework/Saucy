@@ -25,7 +25,7 @@ final class BuildSaucyCache extends Command
      * Execute the console command.
      */
     public function handle(
-        BuildSaucyProjectMappings $mappings
+        BuildSaucyProjectMappings $mappings,
     ): int {
         $this->info('Building cache...');
 

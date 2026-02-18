@@ -3,7 +3,7 @@
 return [
     // directories to search in for commands, aggregates, events, queries, etc.
     'directories' => [
-        __DIR__ . '/../app'
+        __DIR__ . '/../app',
     ],
 
     'cache_path' => base_path('saucy/cache.dat'),
@@ -23,5 +23,15 @@ return [
         'timeout' => 20, // seconds,
         'queue' => 'projections',
         'keep_processing_without_new_messages_before_stop_in_seconds' => 5,
+    ],
+
+    'activity_log_retention_days' => null,
+
+    'poison_messages' => [
+        'notification' => [
+            // Set to a notifiable class to receive notifications when messages are poisoned.
+            // The class should use the Illuminate\Notifications\Notifiable trait.
+            'notifiable' => null,
+        ],
     ],
 ];

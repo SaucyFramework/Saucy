@@ -10,7 +10,7 @@ final readonly class AllStreamSubscriptionRegistry
     public array $streams;
 
     public function __construct(
-        AllStreamSubscription...$streams
+        AllStreamSubscription...$streams,
     ) {
         $streamsMap = [];
         foreach ($streams as $stream) {

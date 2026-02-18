@@ -12,6 +12,8 @@ use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscription;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
+use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscription;
 use Saucy\MessageStorage\AllStreamReader;
@@ -61,7 +63,7 @@ final readonly class SubscriptionRegistryFactory
             streamOptions: new StreamOptions(
                 pageSize: $projectorConfig->pageSize ?? config('saucy.all_stream_projection.page_size', 10), // @phpstan-ignore-line
                 commitBatchSize: $projectorConfig->commitBatchSize ?? config('saucy.all_stream_projection.commit_batch_size', 1), // @phpstan-ignore-line
-                eventTypes: self::mapEventTypes($typeMap, $projectorConfig), // @phpstan-ignore-line
+                eventTypes: self::mapEventTypes($typeMap, $projectorConfig),
                 processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'), // @phpstan-ignore-line
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
@@ -72,12 +74,15 @@ final readonly class SubscriptionRegistryFactory
             checkpointStore: $application->make(CheckpointStore::class),
             streamNameTypeMap: $typeMap,
             activityStreamLogger: $application->make(ActivityStreamLogger::class),
+            failureMode: $projectorConfig->failureMode,
+            poisonMessageStore: $application->make(PoisonMessageStore::class),
+            poisonMessageRecorder: $application->make(PoisonMessageRecorder::class),
         );
     }
 
     private static function buildStreamSubscription(ProjectorConfig $projectorConfig, TypeMap $typeMap, Application $application): StreamSubscription
     {
-        if($projectorConfig->aggregateType === null) {
+        if ($projectorConfig->aggregateType === null) {
             throw new \Exception('Aggregate type is required for aggregate instance projectors');
         }
 
@@ -95,6 +100,9 @@ final readonly class SubscriptionRegistryFactory
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $application->make(CheckpointStore::class),
             streamNameTypeMap: $typeMap,
+            failureMode: $projectorConfig->failureMode,
+            poisonMessageRecorder: $application->make(PoisonMessageRecorder::class),
+            activityStreamLogger: $application->make(ActivityStreamLogger::class),
         );
     }
 
@@ -108,7 +116,7 @@ final readonly class SubscriptionRegistryFactory
     {
         $streams = [];
         foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
-            if($projectorConfig->projectorType === ProjectorType::AllStream) {
+            if ($projectorConfig->projectorType === ProjectorType::AllStream) {
                 $streams[] = self::buildAllStreamSubscription($projectorConfig, $typeMap, $application);
             }
         }
@@ -125,7 +133,7 @@ final readonly class SubscriptionRegistryFactory
     {
         $streams = [];
         foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
-            if($projectorConfig->projectorType === ProjectorType::AggregateInstance && $projectorConfig->async) {
+            if ($projectorConfig->projectorType === ProjectorType::AggregateInstance && $projectorConfig->async) {
                 $streams[] = self::buildStreamSubscription($projectorConfig, $typeMap, $application);
             }
         }
@@ -142,7 +150,7 @@ final readonly class SubscriptionRegistryFactory
     {
         $streams = [];
         foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
-            if($projectorConfig->projectorType === ProjectorType::AggregateInstance && !$projectorConfig->async) {
+            if ($projectorConfig->projectorType === ProjectorType::AggregateInstance && !$projectorConfig->async) {
                 $streams[] = self::buildStreamSubscription($projectorConfig, $typeMap, $application);
             }
         }

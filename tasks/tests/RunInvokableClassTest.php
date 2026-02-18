@@ -21,7 +21,7 @@ final class RunInvokableClassTest extends TestCase
         $container->instance(InvokableWithoutArguments::class, $invokableClass);
 
         $taskLocation = new InvokableClass(
-            className: InvokableWithoutArguments::class
+            className: InvokableWithoutArguments::class,
         );
 
         $taskRunner = new TaskRunner($container);
@@ -38,7 +38,7 @@ final class RunInvokableClassTest extends TestCase
         $container->instance(InvokableWithArguments::class, $invokableClass);
 
         $taskLocation = new InvokableClass(
-            className: InvokableWithArguments::class
+            className: InvokableWithArguments::class,
         );
 
         $taskRunner = new TaskRunner($container);

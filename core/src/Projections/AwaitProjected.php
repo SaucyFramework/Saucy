@@ -21,12 +21,12 @@ final readonly class AwaitProjected
     {
         $eventData = $this->readEventData->getForEventId($messageId);
         foreach ($this->allStreamSubscriptionRegistry->streams as $stream) {
-            if($stream->consumePipe->handles($projectorClass)) {
+            if ($stream->consumePipe->handles($projectorClass)) {
                 $tries = 0;
                 startAllStream:
                 ++$tries;
                 $position = $stream->checkpointStore->get($stream->subscriptionId);
-                if($position->position < $eventData->globalPosition) {
+                if ($position->position < $eventData->globalPosition) {
                     $this->backOffStrategy->backOff($tries, new \Exception("Event not yet projected"));
                     goto startAllStream;
                 }
@@ -35,13 +35,13 @@ final readonly class AwaitProjected
 
         // do the same for streamSubscriptions
         foreach ($this->streamSubscriptionRegistry->streams as $stream) {
-            if($stream->consumePipe->handles($projectorClass)) {
+            if ($stream->consumePipe->handles($projectorClass)) {
                 $tries = 0;
 
                 startStream:
                 ++$tries;
                 $position = $stream->checkpointStore->get($stream->getId(AggregateStreamName::fromString($eventData->streamName)));
-                if($position->position < $eventData->streamPosition) {
+                if ($position->position < $eventData->streamPosition) {
                     $this->backOffStrategy->backOff($tries, new \Exception("Event not yet projected"));
                     goto startStream;
                 }

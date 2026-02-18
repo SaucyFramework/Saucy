@@ -27,7 +27,7 @@ final readonly class AggregateStore
     {
         $streamName = $this->streamNameMapper->getStreamNameFor(
             $this->typeMap->instanceToType($aggregateRoot),
-            $aggregateRoot->aggregateRootId()
+            $aggregateRoot->aggregateRootId(),
         );
 
         $aggregateRootVersion = $aggregateRoot->aggregateRootVersion();
@@ -45,7 +45,7 @@ final readonly class AggregateStore
                     position: ++$aggregateRootVersion,
                 );
             },
-            $events
+            $events,
         );
 
         $this->messageRepository->persist($streamName, ...$streamEvents);
@@ -61,11 +61,11 @@ final readonly class AggregateStore
     {
         $streamName = $this->streamNameMapper->getStreamNameFor(
             $this->typeMap->classNameToType($aggregateRootClass),
-            $aggregateRootId
+            $aggregateRootId,
         );
 
         $events = $this->messagesToEvents(
-            streamEvents: $this->messageRepository->retrieveAllInStream($streamName)
+            streamEvents: $this->messageRepository->retrieveAllInStream($streamName),
         );
 
         return $aggregateRootClass::reconstituteFromEvents($aggregateRootId, $events);

@@ -2,7 +2,7 @@
 
 > Warning, this documentation is a temporary placeholder until the full documentation is ready. Find example usage in the /workbench/app directory.
 
-### Todo: 
+### Todo:
 
 - [ ] Add tests & phpstan
 - [x] Add Eloquent Projector
@@ -12,6 +12,7 @@
 - [ ] replay capabilities
 - [ ] tracing ui
 - [ ] batch commit projections
+- [x] Poison message handling
 
 ## Inspiration / dependencies
 Saucy is heavily inspired and partly uses components of EventSauce. (link) 
@@ -225,10 +226,10 @@ final class BalanceProjector extends IlluminateDatabaseProjector
 }
 ```
 
-Next to illuminate database projectors, we also support Eloquent models as read model. 
+Next to illuminate database projectors, we also support Eloquent models as read model.
 In order to do this, we want to protect the fields we project to be updated by other pieces of code. To do this, add the
 
-`use HasReadOnlyFields;` trait to the model you want to project to. Now we can create our Elqouent projector like this: 
+`use HasReadOnlyFields;` trait to the model you want to project to. Now we can create our Elqouent projector like this:
 
 ```php
 #[AggregateProjector(BankAccountAggregate::class)]
@@ -249,8 +250,92 @@ final class BankAccountProjector extends EloquentProjector
 }
 ```
 
+## Poison Messages
 
+When a projector fails to handle an event, Saucy detects it as a poison message. Instead of silently halting your entire subscription, Saucy retries with exponential backoff (~60 seconds), then records the failure and applies a configurable failure mode.
 
+### Failure Modes
+
+Each projector can be configured with a failure mode via its attribute:
+
+```php
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
+
+// Default — stops the entire subscription (backwards compatible)
+#[Projector(failureMode: FailureMode::Halt)]
+class MyProjection extends TypeBasedConsumer { ... }
+
+// Pause just the failing stream, continue processing events from other streams
+#[Projector(failureMode: FailureMode::PauseStream)]
+class CrossAggregateProjection extends TypeBasedConsumer { ... }
+
+// Skip the failing event and continue processing everything
+#[AggregateProjector(BankAccountAggregate::class, failureMode: FailureMode::SkipMessage)]
+class BankAccountProjection extends EloquentProjector { ... }
+```
+
+| Mode | AllStreamSubscription | StreamSubscription |
+|------|----------------------|-------------------|
+| `Halt` | Stops entire subscription | Stops subscription |
+| `PauseStream` | Pauses failing stream, continues others | Falls back to Halt |
+| `SkipMessage` | Skips single event, continues all | Skips single event, continues |
+
+### Retry Behavior
+
+When an event handler throws an exception:
+
+1. Saucy retries with exponential backoff: 100ms, 200ms, 400ms, ... up to ~60 seconds total
+2. During retry, the subscription is held (no other events processed, preserving ordering)
+3. After exhausting retries, the event is marked as a **poison message**
+4. The exception is reported via Laravel's error handler (Sentry, Bugsnag, etc. will capture it)
+5. The configured failure mode determines what happens next
+
+### Managing Poison Messages
+
+Use the artisan command to list, retry, and skip poison messages:
+
+```bash
+# List all unresolved poison messages
+php artisan saucy:poison-messages list
+
+# Filter by subscription
+php artisan saucy:poison-messages list --subscription=balance_projector
+
+# Retry a specific poison message (re-processes the single event)
+php artisan saucy:poison-messages retry 1
+
+# Skip a poison message (marks as skipped, unblocks the stream)
+php artisan saucy:poison-messages skip 1
+```
+
+The `PoisonMessageManager` service is also available for programmatic access:
+
+```php
+$manager = app(PoisonMessageManager::class);
+
+$manager->listUnresolved();                    // all unresolved
+$manager->listUnresolved('balance_projector'); // filtered by subscription
+$manager->retry(1);                            // retry by ID
+$manager->skip(1);                             // skip by ID
+```
+
+### Notifications
+
+Optionally receive a Laravel Notification when a poison message is detected. Configure a notifiable class in `config/saucy.php`:
+
+```php
+'poison_messages' => [
+    'notification' => [
+        'notifiable' => \App\Notifications\OpsTeamNotifiable::class, // null to disable
+    ],
+],
+```
+
+The notifiable class determines the notification channels. Implement `poisonMessageNotificationChannels()` on your notifiable to customize channels (defaults to `mail`).
+
+### Migration
+
+The `poison_messages` table migration is auto-loaded by the service provider. Run `php artisan migrate` after updating the package.
 
 
 

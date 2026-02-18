@@ -20,7 +20,7 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
             ->where('stream_identifier', $streamIdentifier)
             ->first();
 
-        if(!$row) {
+        if (!$row) {
             CheckpointNotFound::forStream($streamIdentifier);
         }
 
@@ -37,5 +37,20 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
                 ['stream_identifier' => $checkpoint->streamIdentifier],
                 ['position' => $checkpoint->position],
             );
+    }
+
+    /**
+     * @return array<Checkpoint>
+     */
+    public function getAll(): array
+    {
+        /** @var array<Checkpoint> */
+        return $this->connection->table($this->tableName)
+            ->get()
+            ->map(fn(object $row) => new Checkpoint(
+                streamIdentifier: $row->stream_identifier,
+                position: (int) $row->position,
+            ))
+            ->toArray();
     }
 }

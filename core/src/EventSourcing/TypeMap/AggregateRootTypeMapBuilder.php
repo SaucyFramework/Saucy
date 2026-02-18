@@ -23,7 +23,7 @@ final readonly class AggregateRootTypeMapBuilder
     public function create(array $classes): TypeMap
     {
         $classMap = [];
-        foreach(AttributeFinder::inClasses($classes)->withName(Aggregate::class)->findClassAttributes() as $classAttribute) {
+        foreach (AttributeFinder::inClasses($classes)->withName(Aggregate::class)->findClassAttributes() as $classAttribute) {
             $attribute = $classAttribute->attribute;
             // should not be required, but makes PhpStan happy
             if (!$attribute instanceof Aggregate) {

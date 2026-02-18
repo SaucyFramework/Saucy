@@ -16,12 +16,12 @@ final readonly class ProjectorMapBuilder
     {
         $attributes = AttributeFinder::inClasses($classes)->withNames(
             Projector::class,
-            AggregateProjector::class
+            AggregateProjector::class,
         )->findAll();
 
         $projectors = [];
         foreach ($attributes as $attribute) {
-            if(!$attribute instanceof ClassAttribute) {
+            if (!$attribute instanceof ClassAttribute) {
                 throw new \Exception('Class ' . $attribute->class . ' is annotated with ' . Projector::class . ' but is not annotating a class');
             }
 
@@ -36,13 +36,15 @@ final readonly class ProjectorMapBuilder
                     projectorType: ProjectorType::AllStream,
                     pageSize: $projectionAttribute->pageSize,
                     commitBatchSize: $projectionAttribute->commitBatchSize,
+                    failureMode: $projectionAttribute->failureMode,
                 ),
                 AggregateProjector::class => new ProjectorConfig(
-                    $projectorClass,
-                    $projectorClass::getMessages(),
-                    ProjectorType::AggregateInstance,
-                    $typeMap->classNameToType($projectionAttribute->aggregateClass),
-                    $projectionAttribute->async,
+                    projectorClass: $projectorClass,
+                    handlingEventClasses: $projectorClass::getMessages(),
+                    projectorType: ProjectorType::AggregateInstance,
+                    aggregateType: $typeMap->classNameToType($projectionAttribute->aggregateClass),
+                    async: $projectionAttribute->async,
+                    failureMode: $projectionAttribute->failureMode,
                 ),
                 default => throw new \Exception("projection attribute not supported"),
             };

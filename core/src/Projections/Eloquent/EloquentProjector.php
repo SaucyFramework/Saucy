@@ -26,7 +26,7 @@ abstract class EloquentProjector extends TypeBasedConsumer
      */
     protected function upsert(array $data): void
     {
-        if(static::$model::find($this->idValue)) {
+        if (static::$model::find($this->idValue)) {
             $this->update($data);
             return;
         }
@@ -66,7 +66,7 @@ abstract class EloquentProjector extends TypeBasedConsumer
 
     public function handle(MessageConsumeContext $context): void
     {
-        if(!$context->streamName instanceof AggregateStreamName) {
+        if (!$context->streamName instanceof AggregateStreamName) {
             throw new \Exception('Can only use this projector with aggregate root streams');
         }
         $this->idValue = $context->streamName->aggregateRootIdAsString();

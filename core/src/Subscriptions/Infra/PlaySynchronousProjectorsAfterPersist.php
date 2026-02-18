@@ -25,20 +25,20 @@ final readonly class PlaySynchronousProjectorsAfterPersist implements AfterPersi
     {
         $eventTypes = array_map(fn(StreamEvent $streamEvent) => $this->typeMap->instanceToType($streamEvent->payload), $streamEvents);
 
-        if(!$streamName instanceof AggregateStreamName) {
+        if (!$streamName instanceof AggregateStreamName) {
             return;
         }
 
-        if($eventTypes === null) {
+        if ($eventTypes === null) {
             return;
         }
 
         foreach ($this->streamSubscriptionRegistry->getStreamsForAggregateType($streamName->aggregateRootType) as $stream) {
-            if($stream->streamOptions->eventTypes === null) {
+            if ($stream->streamOptions->eventTypes === null) {
                 continue;
             }
 
-            if(count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0) {
+            if (count(array_intersect($stream->streamOptions->eventTypes, $eventTypes)) === 0) {
                 continue;
             }
 

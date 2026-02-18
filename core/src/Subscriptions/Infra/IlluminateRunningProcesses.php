@@ -27,12 +27,12 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
             ->where('expires_at', '<', (new \DateTime('now'))->sub(new \DateInterval('PT30S'))->format('Y-m-d H:i:s'))
             ->delete();
 
-        if(!$ignorePaused) {
+        if (!$ignorePaused) {
             $paused = $this->connection->table($this->pausedTableName)
                 ->where('subscription_id', $subscriptionId)
                 ->first();
 
-            if($paused !== null) {
+            if ($paused !== null) {
                 throw StartProcessException::subscriptionIsPaused($paused->reason);
             }
         }
@@ -50,7 +50,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
 
     public function isActive(string $subscriptionId, ?string $processId = null): bool
     {
-        if($this->isPaused($subscriptionId)) {
+        if ($this->isPaused($subscriptionId)) {
             return false;
         }
 
@@ -67,7 +67,7 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
             ->where('process_id', $processId)
             ->first();
 
-        if($row === null) {
+        if ($row === null) {
             return 0;
         }
 

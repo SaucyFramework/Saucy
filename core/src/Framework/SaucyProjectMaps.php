@@ -15,8 +15,7 @@ final readonly class SaucyProjectMaps implements SerializablePayload
         public ProjectorMap $projectorMap,
         public CommandTaskMap $commandTaskMap,
         public QueryMap $queryMap,
-    ) {
-    }
+    ) {}
 
     public function toPayload(): array
     {

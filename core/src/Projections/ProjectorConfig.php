@@ -4,6 +4,7 @@ namespace Saucy\Core\Projections;
 
 use EventSauce\EventSourcing\Serialization\SerializablePayload;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
 
 final readonly class ProjectorConfig implements SerializablePayload
 {
@@ -19,6 +20,7 @@ final readonly class ProjectorConfig implements SerializablePayload
         public bool $async = true,
         public ?int $pageSize = null,
         public ?int $commitBatchSize = null,
+        public FailureMode $failureMode = FailureMode::Halt,
     ) {}
 
     public function toPayload(): array
@@ -31,6 +33,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             'async' => $this->async,
             'pageSize' => $this->pageSize,
             'commitBatchSize' => $this->commitBatchSize,
+            'failureMode' => $this->failureMode->value,
         ];
     }
 
@@ -44,6 +47,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             async: $payload['async'] ?? true,
             pageSize: $payload['pageSize'] ?? null,
             commitBatchSize: $payload['commitBatchSize'] ?? null,
+            failureMode: FailureMode::from($payload['failureMode'] ?? FailureMode::Halt->value),
         );
     }
 }

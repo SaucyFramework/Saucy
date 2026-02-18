@@ -31,7 +31,12 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         RunningProcesses $runningProcesses,
     ): void {
         $subscription = $subscriptionRegistry->get($this->subscriptionId);
-        $this->runSubscription($subscription, $runningProcesses);
+        try {
+            $this->runSubscription($subscription, $runningProcesses);
+        } catch (\Throwable $e) {
+            $runningProcesses->stop($this->processId);
+            throw $e;
+        }
     }
 
     public function displayName(): string
@@ -50,7 +55,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 
     private function runSubscription(AllStreamSubscription $subscription, RunningProcesses $runningProcesses): void
     {
-        if(!$runningProcesses->isActive($this->subscriptionId, $this->processId)) {
+        if (!$runningProcesses->isActive($this->subscriptionId, $this->processId)) {
             $runningProcesses->reportStatus($this->processId, 'stopping');
             $runningProcesses->stop($this->processId);
             $this->startNewProcess($subscription, $runningProcesses);
@@ -59,7 +64,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 
         $timeLeft = $runningProcesses->timeLeft($this->processId) - 5;
 
-        if($timeLeft <= 0) {
+        if ($timeLeft <= 0) {
             $runningProcesses->reportStatus($this->processId, 'stopping');
             $runningProcesses->stop($this->processId);
             $this->startNewProcess($subscription, $runningProcesses);
@@ -70,13 +75,13 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 
         $messagesHandled = $subscription->poll($timeLeft);
 
-        if($messagesHandled === 0) {
+        if ($messagesHandled === 0) {
 
-            if(!isset($this->timestampZeroMessagesHandled)) {
+            if (!isset($this->timestampZeroMessagesHandled)) {
                 $this->timestampZeroMessagesHandled = time();
             }
 
-            if(time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
+            if (time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
                 $runningProcesses->reportStatus($this->processId, 'stopping');
                 $runningProcesses->stop($this->processId);
                 return;
