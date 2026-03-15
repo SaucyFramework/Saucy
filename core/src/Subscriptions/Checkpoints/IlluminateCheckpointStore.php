@@ -39,6 +39,13 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
             );
     }
 
+    public function delete(string $streamIdentifier): void
+    {
+        $this->connection->table($this->tableName)
+            ->where('stream_identifier', $streamIdentifier)
+            ->delete();
+    }
+
     /**
      * @return array<Checkpoint>
      */

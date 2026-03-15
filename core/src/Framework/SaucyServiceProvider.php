@@ -15,6 +15,9 @@ use Saucy\Core\Laravel\Commands\BuildSaucyCache;
 use Saucy\Core\Laravel\Commands\PoisonMessagesCommand;
 use Saucy\Core\Laravel\Commands\SnapshotPositionsCommand;
 use Saucy\Core\Projections\AwaitProjected;
+use Saucy\Core\Projections\Replay\BackgroundReplayManager;
+use Saucy\Core\Projections\Replay\BackgroundReplayStore;
+use Saucy\Core\Projections\Replay\IlluminateBackgroundReplayStore;
 use Saucy\Core\Query\QueryBus;
 use Saucy\Core\Query\QueryHandlingMiddleware;
 use Saucy\Core\Query\SelfHandlingQueryHandler;
@@ -132,6 +135,14 @@ final class SaucyServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(PoisonMessageManager::class);
+
+        $this->app->bind(BackgroundReplayStore::class, function (Application $application) {
+            return new IlluminateBackgroundReplayStore(
+                $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        $this->app->bind(BackgroundReplayManager::class);
 
         $messageRepository = new IlluminateMessageStorage(
             connection: $this->app->make(DatabaseManager::class)->connection(),

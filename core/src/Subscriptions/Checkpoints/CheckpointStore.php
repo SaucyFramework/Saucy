@@ -13,6 +13,8 @@ interface CheckpointStore
 
     public function store(Checkpoint $checkpoint): void;
 
+    public function delete(string $streamIdentifier): void;
+
     /**
      * @return array<Checkpoint>
      */

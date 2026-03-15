@@ -9,17 +9,19 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Str;
 use Saucy\Core\Events\Streams\AggregateStreamName;
+use Saucy\Core\Projections\Replay\SupportsBackgroundReplay;
 use Saucy\Core\Subscriptions\Consumers\TypeBasedConsumer;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 
-abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
+abstract class IlluminateDatabaseProjector extends TypeBasedConsumer implements SupportsBackgroundReplay
 {
     protected Builder $queryBuilder;
     private string $scopedAggregateRootId;
+    private bool $replayMode = false;
 
     public function __construct(private Connection $connection)
     {
-        $this->queryBuilder = $this->connection->table($this->tableName());
+        $this->queryBuilder = $this->connection->table($this->activeTableName());
     }
 
     /**
@@ -78,6 +80,45 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
         return 'projection_' . Str::of(get_class($this))->afterLast('\\')->snake();
     }
 
+    protected function activeTableName(): string
+    {
+        return $this->replayMode ? $this->replayTableNameFor($this->tableName()) : $this->tableName();
+    }
+
+    /**
+     * Helper for multi-table projectors: returns the replay variant of any table name.
+     */
+    protected function replayTableNameFor(string $tableName): string
+    {
+        return $tableName . '_replay';
+    }
+
+    protected function isReplayMode(): bool
+    {
+        return $this->replayMode;
+    }
+
+    /**
+     * Helper for multi-table projectors: atomically swaps a single table pair.
+     */
+    protected function swapTable(string $liveTable): void
+    {
+        $replay = $this->replayTableNameFor($liveTable);
+        $old = $liveTable . '_old';
+        $driver = $this->connection->getDriverName();
+
+        match ($driver) {
+            'mysql' => $this->connection->unprepared(
+                "RENAME TABLE `{$liveTable}` TO `{$old}`, `{$replay}` TO `{$liveTable}`",
+            ),
+            default => $this->connection->transaction(function () use ($liveTable, $replay, $old) {
+                $schema = $this->connection->getSchemaBuilder();
+                $schema->rename($liveTable, $old);
+                $schema->rename($replay, $liveTable);
+            }),
+        };
+    }
+
     abstract protected function schema(Blueprint $blueprint): void;
 
     protected function idColumnName(): string
@@ -96,7 +137,7 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
 
     public function handle(MessageConsumeContext $context): void
     {
-        $this->queryBuilder = $this->connection->table($this->tableName());
+        $this->queryBuilder = $this->connection->table($this->activeTableName());
         if (!$context->streamName instanceof AggregateStreamName) {
             throw new Exception('Can only use this projector with aggregate root streams');
         }
@@ -109,8 +150,9 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
 
     protected function migrate(): void
     {
+        $table = $this->activeTableName();
         try {
-            $this->connection->getSchemaBuilder()->hasTable($this->tableName()) || $this->connection->getSchemaBuilder()->create($this->tableName(), function (Blueprint $blueprint) {
+            $this->connection->getSchemaBuilder()->hasTable($table) || $this->connection->getSchemaBuilder()->create($table, function (Blueprint $blueprint) {
                 $this->schema($blueprint);
             });
         } catch (\PDOException $e) {
@@ -125,6 +167,41 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer
 
     protected function reset(): void
     {
-        $this->connection->getSchemaBuilder()->dropIfExists($this->tableName());
+        $this->connection->getSchemaBuilder()->dropIfExists($this->activeTableName());
+    }
+
+    public function setupReplayTables(): void
+    {
+        $replayTable = $this->tableName() . '_replay';
+        $schemaBuilder = $this->connection->getSchemaBuilder();
+        $schemaBuilder->dropIfExists($replayTable);
+        $schemaBuilder->create($replayTable, function (Blueprint $blueprint) {
+            $this->schema($blueprint);
+        });
+    }
+
+    public function activateReplayMode(): void
+    {
+        $this->replayMode = true;
+    }
+
+    public function deactivateReplayMode(): void
+    {
+        $this->replayMode = false;
+    }
+
+    public function swapReplayTables(): void
+    {
+        $this->swapTable($this->tableName());
+    }
+
+    public function cleanupAfterSwap(): void
+    {
+        $this->connection->getSchemaBuilder()->dropIfExists($this->tableName() . '_old');
+    }
+
+    public function teardownReplayTables(): void
+    {
+        $this->connection->getSchemaBuilder()->dropIfExists($this->tableName() . '_replay');
     }
 }
