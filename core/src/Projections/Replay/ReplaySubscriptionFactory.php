@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Saucy\Core\Projections\Replay;
 
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscription;
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
 use Saucy\Core\Subscriptions\StreamOptions;
 
 final readonly class ReplaySubscriptionFactory
@@ -33,9 +34,7 @@ final readonly class ReplaySubscriptionFactory
             checkpointStore: $original->checkpointStore,
             streamNameTypeMap: $original->streamNameTypeMap,
             activityStreamLogger: $original->activityStreamLogger,
-            failureMode: $original->failureMode,
-            poisonMessageStore: $original->poisonMessageStore,
-            poisonMessageRecorder: $original->poisonMessageRecorder,
+            failureMode: FailureMode::Halt,
         );
     }
 

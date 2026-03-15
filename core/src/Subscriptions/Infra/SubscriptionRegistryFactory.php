@@ -64,6 +64,7 @@ final readonly class SubscriptionRegistryFactory
                 pageSize: $projectorConfig->pageSize ?? config('saucy.all_stream_projection.page_size', 10), // @phpstan-ignore-line
                 commitBatchSize: $projectorConfig->commitBatchSize ?? config('saucy.all_stream_projection.commit_batch_size', 1), // @phpstan-ignore-line
                 eventTypes: self::mapEventTypes($typeMap, $projectorConfig),
+                startingFromPosition: $projectorConfig->startFrom,
                 processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'), // @phpstan-ignore-line
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line

@@ -78,10 +78,14 @@ final readonly class BackgroundReplayManager
 
         try {
             // 1. Pause main subscription
-            $this->runningProcesses->pause($subscriptionId, 'hot swap in progress');
+            if (!$this->runningProcesses->isPaused($subscriptionId)) {
+                $this->runningProcesses->pause($subscriptionId, 'hot swap in progress');
+            }
 
             // 2. Pause the replay subscription (stop new polls)
-            $this->runningProcesses->pause($replaySubscriptionId, 'hot swap in progress');
+            if (!$this->runningProcesses->isPaused($replaySubscriptionId)) {
+                $this->runningProcesses->pause($replaySubscriptionId, 'hot swap in progress');
+            }
 
             // 3. Wait for both processes to drain
             $this->waitForProcessToDrain($subscriptionId);
@@ -96,6 +100,9 @@ final readonly class BackgroundReplayManager
             $this->checkpointStore->store(new Checkpoint($subscriptionId, $replayCheckpoint->position));
 
             // 6. Clean up
+            if ($this->runningProcesses->isPaused($replaySubscriptionId)) {
+                $this->runningProcesses->resume($replaySubscriptionId);
+            }
             $this->checkpointStore->delete($replaySubscriptionId);
             $original->messageConsumer->cleanupAfterSwap();
             $this->replayStore->remove($subscriptionId);
@@ -175,10 +182,13 @@ final readonly class BackgroundReplayManager
         $replaySubscriptionId = ReplaySubscriptionFactory::replaySubscriptionId($subscriptionId);
 
         // Stop replay process
-        $this->runningProcesses->pause($replaySubscriptionId, 'cancelling replay');
+        if (!$this->runningProcesses->isPaused($replaySubscriptionId)) {
+            $this->runningProcesses->pause($replaySubscriptionId, 'cancelling replay');
+        }
         $this->waitForProcessToDrain($replaySubscriptionId);
 
         // Clean up
+        $this->runningProcesses->resume($replaySubscriptionId);
         $original->messageConsumer->teardownReplayTables();
         $this->checkpointStore->delete($replaySubscriptionId);
         $this->replayStore->remove($subscriptionId);

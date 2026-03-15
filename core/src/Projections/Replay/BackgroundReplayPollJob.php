@@ -24,6 +24,10 @@ final class BackgroundReplayPollJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    public int $tries = 1;
+
+    public int $timeout = 300;
+
     private int $timestampZeroMessagesHandled;
 
     public function __construct(
@@ -34,6 +38,7 @@ final class BackgroundReplayPollJob implements ShouldQueue
     public function handle(
         AllStreamSubscriptionRegistry $subscriptionRegistry,
         RunningProcesses $runningProcesses,
+        BackgroundReplayStore $replayStore,
     ): void {
         $original = $subscriptionRegistry->get($this->originalSubscriptionId);
 
@@ -50,6 +55,7 @@ final class BackgroundReplayPollJob implements ShouldQueue
             $this->runSubscription($replaySubscription, $runningProcesses);
         } catch (\Throwable $e) {
             $runningProcesses->stop($this->processId);
+            $replayStore->markFailed($this->originalSubscriptionId, $e->getMessage());
             throw $e;
         }
     }

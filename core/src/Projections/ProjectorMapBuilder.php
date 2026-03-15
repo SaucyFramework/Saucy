@@ -37,6 +37,7 @@ final readonly class ProjectorMapBuilder
                     pageSize: $projectionAttribute->pageSize,
                     commitBatchSize: $projectionAttribute->commitBatchSize,
                     failureMode: $projectionAttribute->failureMode,
+                    startFrom: $projectionAttribute->startFrom,
                 ),
                 AggregateProjector::class => new ProjectorConfig(
                     projectorClass: $projectorClass,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Saucy\Core\Projections\Replay;
 
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\QueryException;
 
 final readonly class IlluminateBackgroundReplayStore implements BackgroundReplayStore
 {
@@ -28,10 +29,14 @@ final readonly class IlluminateBackgroundReplayStore implements BackgroundReplay
 
     public function getStatus(string $subscriptionId): ?ReplayStatus
     {
-        /** @var object{status: string}|null $row */
-        $row = $this->connection->table($this->tableName)
-            ->where('subscription_id', $subscriptionId)
-            ->first();
+        try {
+            /** @var object{status: string}|null $row */
+            $row = $this->connection->table($this->tableName)
+                ->where('subscription_id', $subscriptionId)
+                ->first();
+        } catch (QueryException) {
+            return null;
+        }
 
         if ($row === null) {
             return null;
@@ -83,12 +88,16 @@ final readonly class IlluminateBackgroundReplayStore implements BackgroundReplay
      */
     public function getAll(): array
     {
-        /** @var array<string, ReplayStatus> */
-        return $this->connection->table($this->tableName)
-            ->get()
-            ->mapWithKeys(fn(object $row) => [
-                $row->subscription_id => ReplayStatus::from($row->status),
-            ])
-            ->toArray();
+        try {
+            /** @var array<string, ReplayStatus> */
+            return $this->connection->table($this->tableName)
+                ->get()
+                ->mapWithKeys(fn(object $row) => [
+                    $row->subscription_id => ReplayStatus::from($row->status),
+                ])
+                ->toArray();
+        } catch (QueryException) {
+            return [];
+        }
     }
 }

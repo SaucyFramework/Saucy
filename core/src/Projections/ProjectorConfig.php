@@ -21,6 +21,7 @@ final readonly class ProjectorConfig implements SerializablePayload
         public ?int $pageSize = null,
         public ?int $commitBatchSize = null,
         public FailureMode $failureMode = FailureMode::Halt,
+        public int $startFrom = 0,
     ) {}
 
     public function toPayload(): array
@@ -34,6 +35,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             'pageSize' => $this->pageSize,
             'commitBatchSize' => $this->commitBatchSize,
             'failureMode' => $this->failureMode->value,
+            'startFrom' => $this->startFrom,
         ];
     }
 
@@ -48,6 +50,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             pageSize: $payload['pageSize'] ?? null,
             commitBatchSize: $payload['commitBatchSize'] ?? null,
             failureMode: FailureMode::from($payload['failureMode'] ?? FailureMode::Halt->value),
+            startFrom: $payload['startFrom'] ?? 0,
         );
     }
 }
