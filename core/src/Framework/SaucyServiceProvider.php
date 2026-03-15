@@ -118,16 +118,12 @@ final class SaucyServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(PoisonMessageRecorder::class, function (Application $application) {
-            $notifiable = null;
-            /** @var class-string|null $notifiableClass */
-            $notifiableClass = config('saucy.poison_messages.notification.notifiable');
-            if ($notifiableClass !== null) {
-                $notifiable = $application->make($notifiableClass);
-            }
+            /** @var array<array{channel: string, route: string}> $routes */
+            $routes = config('saucy.poison_messages.notification.routes', []);
 
             return new PoisonMessageRecorder(
                 $application->make(PoisonMessageStore::class),
-                $notifiable,
+                $routes,
             );
         });
 

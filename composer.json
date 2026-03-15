@@ -17,6 +17,9 @@
         "larastan/larastan": "^2.0",
         "friendsofphp/php-cs-fixer": "^3.49"
     },
+    "suggest": {
+        "laravel/slack-notification-channel": "Required for Slack poison message notifications"
+    },
     "autoload": {
         "psr-4": {
             "Saucy\\Core\\": "core/src/",

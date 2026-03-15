@@ -29,9 +29,12 @@ return [
 
     'poison_messages' => [
         'notification' => [
-            // Set to a notifiable class to receive notifications when messages are poisoned.
-            // The class should use the Illuminate\Notifications\Notifiable trait.
-            'notifiable' => null,
+            // Configure routes to receive notifications when messages are poisoned.
+            // Each route specifies a notification channel and its target.
+            // Example:
+            //   ['channel' => 'mail', 'route' => 'ops@example.com'],
+            //   ['channel' => 'slack', 'route' => 'https://hooks.slack.com/services/...'],
+            'routes' => [],
         ],
     ],
 ];

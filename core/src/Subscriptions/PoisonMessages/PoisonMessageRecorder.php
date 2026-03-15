@@ -2,15 +2,18 @@
 
 namespace Saucy\Core\Subscriptions\PoisonMessages;
 
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Saucy\Core\Notifications\PoisonMessageDetected;
 use Saucy\MessageStorage\StoredEvent;
 
 final readonly class PoisonMessageRecorder
 {
+    /**
+     * @param array<array{channel: string, route: string}> $notificationRoutes
+     */
     public function __construct(
         private PoisonMessageStore $poisonMessageStore,
-        private ?object $notifiable = null,
+        private array $notificationRoutes = [],
     ) {}
 
     public function record(string $subscriptionId, StoredEvent $storedEvent, \Throwable $exception, int $retryCount): void
@@ -32,9 +35,12 @@ final readonly class PoisonMessageRecorder
 
         report($exception);
 
-        if ($this->notifiable !== null) {
-            /** @var Notifiable $this->notifiable */
-            $this->notifiable->notify(new PoisonMessageDetected($poisonMessage)); // @phpstan-ignore-line
+        if ($this->notificationRoutes !== []) {
+            $notifiable = new AnonymousNotifiable();
+            foreach ($this->notificationRoutes as $route) {
+                $notifiable->route($route['channel'], $route['route']);
+            }
+            $notifiable->notify(new PoisonMessageDetected($poisonMessage));
         }
     }
 }

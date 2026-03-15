@@ -2,6 +2,7 @@
 
 namespace Saucy\Core\Notifications;
 
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessage;
@@ -17,12 +18,11 @@ class PoisonMessageDetected extends Notification
      */
     public function via(object $notifiable): array
     {
-        /** @var array<string> $channels */
-        $channels = method_exists($notifiable, 'poisonMessageNotificationChannels')
-            ? $notifiable->poisonMessageNotificationChannels()
-            : ['mail'];
+        if ($notifiable instanceof AnonymousNotifiable) {
+            return array_keys($notifiable->routes);
+        }
 
-        return $channels;
+        return ['mail'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -36,6 +36,34 @@ class PoisonMessageDetected extends Notification
             ->line('**Error:** ' . $this->poisonMessage->errorMessage)
             ->line('**Retries:** ' . $this->poisonMessage->retryCount)
             ->line('Use `php artisan saucy:poison-messages list` to view all poison messages.');
+    }
+
+    /**
+     * Requires laravel/slack-notification-channel to be installed.
+     */
+    public function toSlack(object $notifiable): mixed
+    {
+        $class = \Illuminate\Notifications\Slack\SlackMessage::class; // @phpstan-ignore-line
+        if (!class_exists($class)) {
+            throw new \RuntimeException('laravel/slack-notification-channel is required for Slack notifications. Install it via: composer require laravel/slack-notification-channel');
+        }
+
+        /** @var mixed $message */
+        $message = new $class();
+
+        return $message /** @phpstan-ignore-line */
+            ->headerBlock('Poison Message Detected')
+            ->sectionBlock(function ($block) {
+                $block->text('A poison message was detected in subscription *' . $this->poisonMessage->subscriptionId . '*.');
+            })
+            ->sectionBlock(function ($block) {
+                $block->field("*Stream:*\n" . $this->poisonMessage->streamName)->markdown();
+                $block->field("*Event ID:*\n" . $this->poisonMessage->messageId)->markdown();
+            })
+            ->sectionBlock(function ($block) {
+                $block->field("*Error:*\n" . $this->poisonMessage->errorMessage)->markdown();
+                $block->field("*Retries:*\n" . $this->poisonMessage->retryCount)->markdown();
+            });
     }
 
     /**
