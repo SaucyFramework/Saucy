@@ -36,11 +36,11 @@ final readonly class StreamSubscriptionReplayManager
         $subscription = $this->resolveSubscription($subscriptionId);
 
         $jobs = [];
-        foreach ($this->aggregateInstanceRepository->getAllForType($subscription->aggregateType) as $aggregateId) {
+        foreach ($this->aggregateInstanceRepository->getAllForType($subscription->aggregateType) as $instance) {
             $jobs[] = new StreamReplayJob(
                 subscriptionId: $subscriptionId,
                 aggregateType: $subscription->aggregateType,
-                aggregateId: $aggregateId,
+                aggregateId: $instance->aggregateId,
             );
         }
 
@@ -59,11 +59,11 @@ final readonly class StreamSubscriptionReplayManager
         $subscription = $this->resolveSubscription($subscriptionId);
 
         $jobs = [];
-        foreach ($this->aggregateInstanceRepository->getAllForType($subscription->aggregateType) as $aggregateId) {
+        foreach ($this->aggregateInstanceRepository->getAllForType($subscription->aggregateType) as $instance) {
             $jobs[] = new StreamTriggerJob(
                 subscriptionId: $subscriptionId,
                 aggregateType: $subscription->aggregateType,
-                aggregateId: $aggregateId,
+                aggregateId: $instance->aggregateId,
             );
         }
 

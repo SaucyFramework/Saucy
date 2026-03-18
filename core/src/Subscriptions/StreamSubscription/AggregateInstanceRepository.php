@@ -17,7 +17,7 @@ interface AggregateInstanceRepository
     /**
      * Get all known aggregate IDs for a given aggregate type.
      *
-     * @return Generator<string>
+     * @return Generator<object{aggregateId: string, streamPosition: int}>
      */
     public function getAllForType(string $aggregateType): Generator;
 }

@@ -35,7 +35,6 @@ final readonly class StreamSubscription
         public FailureMode $failureMode = FailureMode::Halt,
         public ?PoisonMessageRecorder $poisonMessageRecorder = null,
         public ?ActivityStreamLogger $activityStreamLogger = null,
-        public ?string $migratingFromSubscriptionId = null,
     ) {}
 
     public function poll(StreamName $streamName): int
@@ -50,26 +49,7 @@ final readonly class StreamSubscription
         try {
             $checkpoint = $this->checkpointStore->get($streamIdentifier);
         } catch (Checkpoints\CheckpointNotFound $e) {
-            $startPosition = $this->streamOptions->startingFromPosition;
-
-            // When migrating from an all-stream projector, derive the starting position
-            // from the old subscription's global checkpoint
-            if ($this->migratingFromSubscriptionId !== null) {
-                try {
-                    $oldCheckpoint = $this->checkpointStore->get($this->migratingFromSubscriptionId);
-                    $startPosition = $this->eventReader->maxStreamPositionAtGlobalPosition($streamName, $oldCheckpoint->position);
-
-                    $this->appendToActivity($log, 'migration_checkpoint', 'derived checkpoint from all-stream subscription', [
-                        'migrating_from' => $this->migratingFromSubscriptionId,
-                        'old_global_position' => $oldCheckpoint->position,
-                        'derived_stream_position' => $startPosition,
-                    ]);
-                } catch (Checkpoints\CheckpointNotFound) {
-                    // Old subscription has no checkpoint, start from beginning
-                }
-            }
-
-            $checkpoint = new Checkpoints\Checkpoint($streamIdentifier, $startPosition);
+            $checkpoint = new Checkpoints\Checkpoint($streamIdentifier, $this->streamOptions->startingFromPosition);
             $this->checkpointStore->store($checkpoint);
         }
 

@@ -14,6 +14,7 @@ use Saucy\Core\Events\Streams\StreamNameMapper;
 use Saucy\Core\Laravel\Commands\BackfillAggregateInstancesCommand;
 use Saucy\Core\Laravel\Commands\BuildSaucyCache;
 use Saucy\Core\Laravel\Commands\PoisonMessagesCommand;
+use Saucy\Core\Laravel\Commands\SeedAggregateProjectorCheckpointsCommand;
 use Saucy\Core\Laravel\Commands\SnapshotPositionsCommand;
 use Saucy\Core\Projections\AwaitProjected;
 use Saucy\Core\Projections\Replay\BackgroundReplayManager;
@@ -73,6 +74,7 @@ final class SaucyServiceProvider extends ServiceProvider
             BackfillAggregateInstancesCommand::class,
             BuildSaucyCache::class,
             PoisonMessagesCommand::class,
+            SeedAggregateProjectorCheckpointsCommand::class,
             SnapshotPositionsCommand::class,
         ]);
     }

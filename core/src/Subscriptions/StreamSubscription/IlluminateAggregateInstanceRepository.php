@@ -28,7 +28,7 @@ final readonly class IlluminateAggregateInstanceRepository implements AggregateI
     }
 
     /**
-     * @return Generator<string>
+     * @return Generator<object{aggregateId: string, streamPosition: int}>
      */
     public function getAllForType(string $aggregateType): Generator
     {
@@ -38,7 +38,10 @@ final readonly class IlluminateAggregateInstanceRepository implements AggregateI
             ->cursor();
 
         foreach ($cursor as $row) {
-            yield $row->aggregate_id;
+            yield (object) [
+                'aggregateId' => $row->aggregate_id,
+                'streamPosition' => (int) $row->stream_position,
+            ];
         }
     }
 }

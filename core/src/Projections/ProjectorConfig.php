@@ -22,7 +22,6 @@ final readonly class ProjectorConfig implements SerializablePayload
         public ?int $commitBatchSize = null,
         public FailureMode $failureMode = FailureMode::Halt,
         public int $startFrom = 0,
-        public ?string $migratingFromSubscriptionId = null,
         public ?string $name = null,
     ) {}
 
@@ -38,7 +37,6 @@ final readonly class ProjectorConfig implements SerializablePayload
             'commitBatchSize' => $this->commitBatchSize,
             'failureMode' => $this->failureMode->value,
             'startFrom' => $this->startFrom,
-            'migratingFromSubscriptionId' => $this->migratingFromSubscriptionId,
             'name' => $this->name,
         ];
     }
@@ -55,7 +53,6 @@ final readonly class ProjectorConfig implements SerializablePayload
             commitBatchSize: $payload['commitBatchSize'] ?? null,
             failureMode: FailureMode::from($payload['failureMode'] ?? FailureMode::Halt->value),
             startFrom: $payload['startFrom'] ?? 0,
-            migratingFromSubscriptionId: $payload['migratingFromSubscriptionId'] ?? null,
             name: $payload['name'] ?? null,
         );
     }
