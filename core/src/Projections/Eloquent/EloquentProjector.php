@@ -6,8 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Subscriptions\Consumers\TypeBasedConsumer;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatResetsStreamBeforeReplay;
 
-abstract class EloquentProjector extends TypeBasedConsumer
+abstract class EloquentProjector extends TypeBasedConsumer implements MessageConsumerThatResetsStreamBeforeReplay
 {
     protected string $idValue;
 
@@ -71,5 +72,13 @@ abstract class EloquentProjector extends TypeBasedConsumer
         }
         $this->idValue = $context->streamName->aggregateRootIdAsString();
         parent::handle($context);
+    }
+
+    public function prepareStreamReplay(AggregateStreamName $streamName): void
+    {
+        static::$model::where(
+            (new static::$model())->getKeyName(),
+            $streamName->aggregateRootIdAsString(),
+        )->delete();
     }
 }

@@ -12,8 +12,9 @@ use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Projections\Replay\SupportsBackgroundReplay;
 use Saucy\Core\Subscriptions\Consumers\TypeBasedConsumer;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatResetsStreamBeforeReplay;
 
-abstract class IlluminateDatabaseProjector extends TypeBasedConsumer implements SupportsBackgroundReplay
+abstract class IlluminateDatabaseProjector extends TypeBasedConsumer implements SupportsBackgroundReplay, MessageConsumerThatResetsStreamBeforeReplay
 {
     protected Builder $queryBuilder;
     private string $scopedAggregateRootId;
@@ -203,5 +204,13 @@ abstract class IlluminateDatabaseProjector extends TypeBasedConsumer implements 
     public function teardownReplayTables(): void
     {
         $this->connection->getSchemaBuilder()->dropIfExists($this->tableName() . '_replay');
+    }
+
+    public function prepareStreamReplay(AggregateStreamName $streamName): void
+    {
+        $this->migrate();
+        $this->connection->table($this->tableName())
+            ->where($this->idColumnName(), $streamName->aggregateRootIdAsString())
+            ->delete();
     }
 }

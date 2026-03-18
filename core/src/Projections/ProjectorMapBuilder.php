@@ -46,6 +46,7 @@ final readonly class ProjectorMapBuilder
                     aggregateType: $typeMap->classNameToType($projectionAttribute->aggregateClass),
                     async: $projectionAttribute->async,
                     failureMode: $projectionAttribute->failureMode,
+                    migratingFromSubscriptionId: $projectionAttribute->migratingFrom,
                 ),
                 default => throw new \Exception("projection attribute not supported"),
             };

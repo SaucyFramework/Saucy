@@ -1,221 +1,138 @@
 # Saucy
 
-> Warning, this documentation is a temporary placeholder until the full documentation is ready. Find example usage in the /workbench/app directory.
+A Laravel package for Event Sourcing and CQRS built on [EventSauce](https://eventsauce.io/). Uses attribute-based auto-discovery for handlers, projectors, and aggregates.
 
-### Todo:
+## Inspiration / Dependencies
 
-- [ ] Add tests & phpstan
-- [x] Add Eloquent Projector
-- [ ] Add reactors & process managers
-- [ ] Add middleware to commands and queries (eg, check if user is authorized to execute a command or query)
-- [ ] (maybe) add document store
-- [ ] replay capabilities
-- [ ] tracing ui
-- [ ] batch commit projections
-- [x] Poison message handling
-
-## Inspiration / dependencies
-Saucy is heavily inspired and partly uses components of EventSauce. (link) 
-Next to that, the event infrastructure is inspired by Eventious (link). Ecotone was another source of inspiration for this project.
+Saucy is heavily inspired by and partly uses components of [EventSauce](https://eventsauce.io/).
+The event infrastructure is inspired by [Eventious](https://github.com/Eventious). [Ecotone](https://ecotone.tech/) was another source of inspiration for this project.
 
 ## Usage
 
-Saucy consists mostly of 3 parts:
-- CommandBus: Auto-wiring CommandBus
-- QueryBus: Auto-wiring QueryBus
-- Projections: Projections that simple register by adding 1 attribute.
+Saucy consists of:
+- **CommandBus**: Auto-wiring command handler registration
+- **QueryBus**: Auto-wiring query handler registration
+- **Projections**: All-stream and aggregate-scoped projectors with replay, management, and monitoring
+- **Subscriptions**: Poll-based event processing with checkpoint tracking, poison message handling, and process management
 
 ### Command Bus
 
-Commands can be handled by aether an event sourced aggregateRoot or a command handler. When the aggregate root is handling the command, Saucy automatically takes care of the Aggregate retrieval and persistance. 
+Commands can be handled by an event-sourced aggregate root or a standalone command handler.
 
-In order to use the command bus, you can use any class as a command. Eg:
 ```php
 final readonly class CreditBankAccount
 {
     public function __construct(
         public BankAccountId $bankAccountId,
         public int $amount,
-    )
-    {
-    }
+    ) {}
 }
 ```
 
-Next, annotate the handler for the command by the `CommandHandler` annotation, and Saucy does the rest.
-
-Outside of aggregate roots
+Annotate the handler with `#[CommandHandler]`:
 
 ```php
+// Standalone handler
 class SomeCommandHandler
 {
-    // Saucy automatically binds the command used as first argument to this handler method
-    #[\Saucy\Core\Command\CommandHandler]
+    #[CommandHandler]
     public function handleCommand(CreditBankAccount $creditBankAccount): void {
-        // do your magic here
+        // handle the command
     }
 }
-```
 
-Within aggregate roots
-```php
-// Saucy needs this in order to know what argument in your command can be used as aggregate root ID
+// Or within an aggregate root
 #[Aggregate(aggregateIdClass: BankAccountId::class, 'bank_account')]
 final class BankAccountAggregate implements AggregateRoot
 {
     use AggregateRootBehaviour;
-    
+
     #[CommandHandler]
     public function credit(CreditBankAccount $creditBankAccount): void
     {
         $this->recordThat(new AccountCredited($creditBankAccount->amount));
     }
-
 }
 ```
 
-We can execute commands to the bus like this: 
+Dispatch commands:
 
 ```php
-    // ideally inject the class in the constructor, and not use make everywhere,
-    // this is just for demo purpose 
-    $commandBus = $this->app->make(\Saucy\Core\Command\CommandBus::class);
-    $commandBus->handle($command);
+$commandBus = app(CommandBus::class);
+$commandBus->handle(new CreditBankAccount($bankAccountId, 100));
 ```
 
 ### Query Bus
-The Query Bus can be used to query the domain for information. It uses similar principles as the command bus. The main difference is that Query's can return something.
 
-Defining a query:
+Queries return results. Define a query implementing `Query<TResult>`:
 
 ```php
 /** @implements Query<int> */
 final readonly class GetBankAccountBalance implements Query
 {
-    public function __construct(
-    public BankAccountId $bankAccountId
-    ){
-    }
+    public function __construct(public BankAccountId $bankAccountId) {}
 }
 ```
 
-Within the query doc-bloc we can hint the return type expected (in this case int, but it can be any class).
-
-To handle a query, annotate the method responsible for handling with `QueryHandler`. Similar as with the command bus, the first argument is the Query the handler method is bound to. 
+Handle with `#[QueryHandler]`:
 
 ```php
-
 class SomeQueryHandler
 {
-    #[\Saucy\Core\Query\QueryHandler]
-    public function getGetBankAccountBalance(GetBankAccountBalance $getBankAccountBalance): int {
-        return $this->repository->getBalanceFor($getBankAccountBalance->bankAccountId);
+    #[QueryHandler]
+    public function getBalance(GetBankAccountBalance $query): int {
+        return $this->repository->getBalanceFor($query->bankAccountId);
     }
 }
 ```
 
-We can execute commands to the bus like this:
+Query handlers can be co-located inside projectors for a clean single-source-of-truth pattern.
+
+## Projections
+
+Two types of projectors:
+
+- **All-stream projectors** (`#[Projector]`): Subscribe to all events across aggregates. Useful for cross-aggregate read models.
+- **Aggregate projectors** (`#[AggregateProjector]`): Scoped to a single aggregate type's stream. Each aggregate instance is processed independently, enabling parallel replay.
+
+### All-Stream Projectors
 
 ```php
-    // ideally inject the class in the constructor, and not use make everywhere,
-    // this is just for demo purpose 
-    $queryBus = $this->app->make(\Saucy\Core\Query\QueryBus::class);
-    $result = $queryBus->query($command);
-```
-
-A nice pattern to use, is to locate queryHandlers that respond with data from a specific projector inside that projector as well. All logic for answering the query can than be found in one place. For an example, see the section about projectors.
-
-## Projectors
-
-Projectors can be used to map events into read models dedicated for querying information.
-
-We can identify two different type of projectors: 
-- All stream projectors: these projectors listen to the stream of all events. Allowing a read model that "joins" data from different aggregate roots. This comes at the costs of projection lag during high concurrency in the system.    
-- AggregateProjectors: these projectors are run in isolation per aggregate root instance. For most use-cases this is sufficient, and comes with the benefit of parallel replaying (two different aggregate root's replay concurrently).
-
-The simplest form of a projector looks like this:
-```php
-
-#[\Saucy\Core\Projections\Projector]
-class MyProjection extends TypeBasedConsumer
+#[Projector]
+class CrossAggregateProjection extends TypeBasedConsumer
 {
-    public function doSomething(AccountCredited $event) {
-//        This method is called for every new AccountCredited event.   
+    public function handleAccountCredited(AccountCredited $event): void
+    {
+        // processes every AccountCredited event across all aggregates
     }
 }
 ```
 
-As second argument of the event handling method you could also request the MessageConsumeContext, this context contains information about the event and the replay that might be useful.
-
-To change the AllStreamProjector to a AggregateProjector, replace the Projector attribute to the AggregateProjector attribute, and pass in the classname of the aggregate the projector should be scoped to.
-```php
-
-#[AggregateProjector(BankAccountAggregate::class)]
-class MyProjection extends TypeBasedConsumer
-{
-    public function doSomething(AccountCredited $event) {
-//        This method is called for every new AccountCredited event.   
-    }
-}
-```
-
-Often you'd want to persist read model state to the database. To avoid tiresome duplication, Saucy comes included with an IlluminateDatabaseProjector.
-This projector scopes the projection automatically to the identifier of the aggregate root, and exposes the following methods to change state in your database:
+Configuration options:
 
 ```php
-protected function upsert(array $array): void
-protected function update(array $array): void
-protected function increment(string $column, int $amount = 1): void
-protected function create(array $array): void
-protected function find(): ?array // returns null when instance could not be found
-protected function delete(): void
+#[Projector(
+    pageSize: 100,             // events per poll batch
+    commitBatchSize: 50,       // events before checkpoint commit
+    failureMode: FailureMode::Halt,
+    startFrom: 0,              // global position to start from
+)]
 ```
 
-Your projection should include the schema method, defining the database table schema for the projection.
-The table name for the projection could be set by overriding the `tableName` method of the parent class. A default of `projection_{{ProjectionClassName}}` is used when the method is not overwritten. 
-
-```php
-protected function schema(Blueprint $blueprint): void
-{
-    // The id column type should be equal to the aggregateRootId type the projection is bound to. 
-    // It's possible to override the `idColumnName` method in order to use a custom name
-    $blueprint->ulid($this->idColumnName())->primary();
-    $blueprint->integer('balance');
-}
-```
-
-Full example of a projector using the IlluminateDatabaseProjector:
+### Aggregate Projectors
 
 ```php
 #[AggregateProjector(BankAccountAggregate::class)]
-final class BalanceProjector extends IlluminateDatabaseProjector
+class BalanceProjector extends IlluminateDatabaseProjector
 {
-    public function ProjectAccountCredited(AccountCredited $accountCredited): void
+    public function handleAccountCredited(AccountCredited $event): void
     {
         $bankAccount = $this->find();
-        if($bankAccount === null){
-            $this->create(['balance' => $accountCredited->amount]);
+        if ($bankAccount === null) {
+            $this->create(['balance' => $event->amount]);
             return;
         }
-
-        $this->increment('balance', $accountCredited->amount);
-    }
-    
-    // Projectors can be combined with QueryHandlers. QueryHandlers aren't magically scoped to the aggregate ID.
-    // When you want to use the provided database access methods, you can first scope the projector to the right aggregate by using the scopeAggregate() method.
-    // It's also possible to query the table directly using $this->queryBuilder 
-    #[QueryHandler]
-    public function getBankAccountBalance(GetBankAccountBalance $query): int
-    {
-        $this->scopeAggregate($query->bankAccountId);
-        $bankAccount = $this->find();
-        if($bankAccount === null){
-            return 0;
-        }
-        return $bankAccount['balance'];
-        
-        // or use queryBuilder
-        $bankAccount = $this->queryBuilder->where($this->idColumnName(), $query->bankAccountId->toString())->first();
+        $this->increment('balance', $event->amount);
     }
 
     protected function schema(Blueprint $blueprint): void
@@ -226,52 +143,115 @@ final class BalanceProjector extends IlluminateDatabaseProjector
 }
 ```
 
-Next to illuminate database projectors, we also support Eloquent models as read model.
-In order to do this, we want to protect the fields we project to be updated by other pieces of code. To do this, add the
+Configuration options:
 
-`use HasReadOnlyFields;` trait to the model you want to project to. Now we can create our Elqouent projector like this:
+```php
+#[AggregateProjector(
+    aggregateClass: BankAccountAggregate::class,
+    async: true,                    // true = queued, false = synchronous
+    failureMode: FailureMode::Halt,
+    migratingFrom: null,            // subscription ID for migration (see below)
+)]
+```
+
+### Projector Base Classes
+
+**`IlluminateDatabaseProjector`** — auto-creates tables, scopes queries to aggregate ID:
+
+```php
+protected function upsert(array $data): void;
+protected function update(array $data): void;
+protected function increment(string $column, int $amount = 1): void;
+protected function create(array $data): void;
+protected function find(): ?array;
+protected function delete(): void;
+```
+
+**`EloquentProjector`** — projects to Eloquent models. Add `use HasReadOnlyFields` to your model:
 
 ```php
 #[AggregateProjector(BankAccountAggregate::class)]
-final class BankAccountProjector extends EloquentProjector
+class BankAccountProjector extends EloquentProjector
 {
     protected static string $model = BankAccountModel::class;
 
-    public function handleAccountCredited(AccountCredited $accountCredited): void
+    public function handleAccountCredited(AccountCredited $event): void
     {
-        $bankAccount = $this->find();
-        if($bankAccount === null){
-            $this->create(['balance' => $accountCredited->amount]);
-            return;
-        }
-
-        $this->increment('balance', $accountCredited->amount);
+        // same create/update/find/increment API
     }
 }
 ```
 
+## Aggregate Projector Management
+
+Aggregate projectors support replay, trigger, and bulk operations through the `StreamSubscriptionReplayManager`.
+
+### Aggregate Instance Registry
+
+Saucy automatically tracks all aggregate instances via a hook on the event store. Each time events are persisted, the aggregate type, ID, and latest stream position are recorded in the `aggregate_instances` table.
+
+For existing data, run the backfill command:
+
+```bash
+php artisan saucy:backfill-aggregate-instances
+```
+
+### Replay
+
+**Single aggregate** — resets the projector's data for that aggregate and re-processes all events inline:
+
+```php
+$manager = app(StreamSubscriptionReplayManager::class);
+$manager->replayStream($subscriptionId, $streamName);
+```
+
+**All aggregates** — dispatches a Laravel `Bus::batch()` where each job resets and replays one aggregate:
+
+```php
+$batch = $manager->replayAll($subscriptionId);
+// Returns an Illuminate\Bus\Batch for monitoring progress
+```
+
+Projectors must implement `MessageConsumerThatResetsStreamBeforeReplay` to support replay (both `IlluminateDatabaseProjector` and `EloquentProjector` implement this automatically).
+
+### Trigger All
+
+Dispatches a batch to poll every known aggregate instance, ensuring the projector is caught up:
+
+```php
+$batch = $manager->triggerAll($subscriptionId);
+```
+
+### Migrating from All-Stream to Aggregate Projector
+
+When converting a `#[Projector]` to an `#[AggregateProjector]`, use the `migratingFrom` parameter to prevent double-processing:
+
+```php
+#[AggregateProjector(
+    aggregateClass: OrderAggregate::class,
+    migratingFrom: 'old_projector_subscription_id',
+)]
+class OrderProjector extends IlluminateDatabaseProjector { ... }
+```
+
+How it works:
+1. When the aggregate projector encounters a stream with no checkpoint, it looks up the old all-stream subscription's `global_position`
+2. It derives the exact `stream_position` in that aggregate's stream that corresponds to the old checkpoint
+3. Stores it as the starting checkpoint — only new events are processed
+4. Each aggregate self-migrates on first touch — zero downtime, gradual migration
+
+Once all aggregates have been processed, remove the `migratingFrom` parameter.
+
 ## Poison Messages
 
-When a projector fails to handle an event, Saucy detects it as a poison message. Instead of silently halting your entire subscription, Saucy retries with exponential backoff (~60 seconds), then records the failure and applies a configurable failure mode.
+When a projector fails to handle an event, Saucy records it as a poison message and applies the configured failure mode.
 
 ### Failure Modes
 
-Each projector can be configured with a failure mode via its attribute:
-
 ```php
-use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
-
-// Default — stops the entire subscription (backwards compatible)
-#[Projector(failureMode: FailureMode::Halt)]
-class MyProjection extends TypeBasedConsumer { ... }
-
-// Pause just the failing stream, continue processing events from other streams
-#[Projector(failureMode: FailureMode::PauseStream)]
-class CrossAggregateProjection extends TypeBasedConsumer { ... }
-
-// Skip the failing event and continue processing everything
-#[AggregateProjector(BankAccountAggregate::class, failureMode: FailureMode::SkipMessage)]
-class BankAccountProjection extends EloquentProjector { ... }
+#[Projector(failureMode: FailureMode::Halt)]          // stops the subscription (default)
+#[Projector(failureMode: FailureMode::PauseStream)]    // pauses failing stream, continues others
+#[Projector(failureMode: FailureMode::SkipMessage)]    // skips the event, continues
 ```
 
 | Mode | AllStreamSubscription | StreamSubscription |
@@ -280,77 +260,161 @@ class BankAccountProjection extends EloquentProjector { ... }
 | `PauseStream` | Pauses failing stream, continues others | Falls back to Halt |
 | `SkipMessage` | Skips single event, continues all | Skips single event, continues |
 
-### Retry Behavior
-
-When an event handler throws an exception:
-
-1. Saucy retries with exponential backoff: 100ms, 200ms, 400ms, ... up to ~60 seconds total
-2. During retry, the subscription is held (no other events processed, preserving ordering)
-3. After exhausting retries, the event is marked as a **poison message**
-4. The exception is reported via Laravel's error handler (Sentry, Bugsnag, etc. will capture it)
-5. The configured failure mode determines what happens next
-
 ### Managing Poison Messages
 
-Use the artisan command to list, retry, and skip poison messages:
-
 ```bash
-# List all unresolved poison messages
 php artisan saucy:poison-messages list
-
-# Filter by subscription
 php artisan saucy:poison-messages list --subscription=balance_projector
-
-# Retry a specific poison message (re-processes the single event)
 php artisan saucy:poison-messages retry 1
-
-# Skip a poison message (marks as skipped, unblocks the stream)
 php artisan saucy:poison-messages skip 1
 ```
 
-The `PoisonMessageManager` service is also available for programmatic access:
+Programmatic access:
 
 ```php
 $manager = app(PoisonMessageManager::class);
-
-$manager->listUnresolved();                    // all unresolved
-$manager->listUnresolved('balance_projector'); // filtered by subscription
-$manager->retry(1);                            // retry by ID
-$manager->skip(1);                             // skip by ID
+$manager->listUnresolved();
+$manager->listUnresolved('balance_projector');
+$manager->retry(1);
+$manager->skip(1);
 ```
 
 ### Notifications
 
-Optionally receive a Laravel Notification when a poison message is detected. Configure a notifiable class in `config/saucy.php`:
+Configure a notifiable class in `config/saucy.php` to receive notifications when poison messages are detected:
 
 ```php
 'poison_messages' => [
     'notification' => [
-        'notifiable' => \App\Notifications\OpsTeamNotifiable::class, // null to disable
+        'notifiable' => \App\Notifications\OpsTeamNotifiable::class,
     ],
 ],
 ```
 
-The notifiable class determines the notification channels. Implement `poisonMessageNotificationChannels()` on your notifiable to customize channels (defaults to `mail`).
+## DynamoDB Storage
 
-### Migration
+Saucy supports DynamoDB as an alternative storage backend for checkpoint tracking and process management (locks). This is useful for serverless deployments or when you want to reduce load on your primary database.
 
-The `poison_messages` table migration is auto-loaded by the service provider. Run `php artisan migrate` after updating the package.
+### Tables
 
+Two DynamoDB tables are used:
 
+| Table | Key | Purpose |
+|-------|-----|---------|
+| `{prefix}saucy_checkpoints` | `stream_identifier` (HASH) | Checkpoint positions for all subscriptions |
+| `{prefix}saucy_processes` | `pk` (HASH) | Running process locks and pause state (`PROCESS#` and `PAUSE#` prefixed keys) |
 
+### Configuration
 
+Add DynamoDB settings to `config/saucy.php`:
 
+```php
+'dynamodb' => [
+    'prefix' => env('SAUCY_DYNAMODB_PREFIX', ''),  // e.g. 'staging_' for multi-env
+],
+```
 
+### Creating Tables
 
+Use the migration helper in a Laravel migration:
 
+```php
+use Saucy\Core\Framework\DynamoDb\SaucyDynamoDbMigration;
 
+return new class extends Migration
+{
+    public function up(): void
+    {
+        SaucyDynamoDbMigration::up();
+    }
 
+    public function down(): void
+    {
+        SaucyDynamoDbMigration::down();
+    }
+};
+```
 
+Tables are created with `PAY_PER_REQUEST` billing and the operation is idempotent (safe to run multiple times).
 
+### Wiring
 
+Register the DynamoDB implementations in your service provider:
 
+```php
+use Aws\DynamoDb\DynamoDbClient;
+use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
+use Saucy\Core\Subscriptions\Checkpoints\DynamoDbCheckpointStore;
+use Saucy\Core\Subscriptions\Infra\RunningProcesses;
+use Saucy\Core\Subscriptions\Infra\DynamoDbRunningProcesses;
 
+// DynamoDB only
+$this->app->bind(CheckpointStore::class, fn () => new DynamoDbCheckpointStore(
+    app(DynamoDbClient::class),
+    config('saucy.dynamodb.prefix') . 'saucy_checkpoints',
+));
 
+$this->app->bind(RunningProcesses::class, fn () => new DynamoDbRunningProcesses(
+    app(DynamoDbClient::class),
+    config('saucy.dynamodb.prefix') . 'saucy_processes',
+));
+```
 
+### Gradual Migration from SQL to DynamoDB
 
+Saucy provides migration-aware store implementations that read from DynamoDB first, fall back to SQL on miss, and write to DynamoDB. This allows a zero-downtime gradual migration:
+
+```php
+use Saucy\Core\Subscriptions\Checkpoints\MigratingCheckpointStore;
+use Saucy\Core\Subscriptions\Checkpoints\DynamoDbCheckpointStore;
+use Saucy\Core\Subscriptions\Checkpoints\IlluminateCheckpointStore;
+
+$this->app->bind(CheckpointStore::class, fn () => new MigratingCheckpointStore(
+    dynamoDb: new DynamoDbCheckpointStore(
+        app(DynamoDbClient::class),
+        config('saucy.dynamodb.prefix') . 'saucy_checkpoints',
+    ),
+    sql: new IlluminateCheckpointStore(
+        app(DatabaseManager::class)->connection(),
+    ),
+));
+```
+
+Same pattern for `RunningProcesses`:
+
+```php
+use Saucy\Core\Subscriptions\Infra\MigratingRunningProcesses;
+use Saucy\Core\Subscriptions\Infra\DynamoDbRunningProcesses;
+use Saucy\Core\Subscriptions\Infra\IlluminateRunningProcesses;
+
+$this->app->bind(RunningProcesses::class, fn () => new MigratingRunningProcesses(
+    dynamoDb: new DynamoDbRunningProcesses(
+        app(DynamoDbClient::class),
+        config('saucy.dynamodb.prefix') . 'saucy_processes',
+    ),
+    sql: new IlluminateRunningProcesses(
+        app(DatabaseManager::class)->connection(),
+    ),
+));
+```
+
+**How it works:**
+- **Reads**: Check DynamoDB first. On miss, read from SQL and copy to DynamoDB (lazy migration).
+- **Writes**: Always go to DynamoDB.
+- **`getAll()`/`all()`**: Merges both sources, DynamoDB takes precedence on conflicts.
+
+Once all checkpoints and processes have been touched (naturally through normal operation, or by triggering all projectors), switch to pure DynamoDB bindings and remove the SQL tables.
+
+## Dashboard
+
+The [Saucy Dashboard](https://github.com/SaucyFramework/dashboard) package provides a web UI for monitoring and managing projections. It supports both all-stream and aggregate projectors in a unified view.
+
+Features:
+- Unified projections list with type filtering (all-stream / aggregate)
+- All-stream projector management: pause, resume, trigger, replay, background replay with hot-swap
+- Aggregate projector management: replay/trigger per instance or in bulk via batched jobs
+- Per-instance progress tracking with lag visibility
+- Paginated, sortable, searchable aggregate instance list
+- Poison message management with retry/skip
+- Event store browser
+- Processing speed charts and position history

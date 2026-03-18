@@ -2,15 +2,16 @@
 
 namespace Saucy\Core\Subscriptions\StreamSubscription;
 
+use Saucy\Core\Events\Streams\AggregateStreamName;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\Checkpoints;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
+use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatResetsStreamBeforeReplay;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\SubscriptionActivity;
-use Saucy\Core\Subscriptions\PoisonMessages\EventHandlerWithRetry;
 use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
 use Saucy\Core\Subscriptions\StreamOptions;
@@ -34,6 +35,7 @@ final readonly class StreamSubscription
         public FailureMode $failureMode = FailureMode::Halt,
         public ?PoisonMessageRecorder $poisonMessageRecorder = null,
         public ?ActivityStreamLogger $activityStreamLogger = null,
+        public ?string $migratingFromSubscriptionId = null,
     ) {}
 
     public function poll(StreamName $streamName): int
@@ -48,7 +50,27 @@ final readonly class StreamSubscription
         try {
             $checkpoint = $this->checkpointStore->get($streamIdentifier);
         } catch (Checkpoints\CheckpointNotFound $e) {
-            $checkpoint = new Checkpoints\Checkpoint($streamIdentifier, $this->streamOptions->startingFromPosition);
+            $startPosition = $this->streamOptions->startingFromPosition;
+
+            // When migrating from an all-stream projector, derive the starting position
+            // from the old subscription's global checkpoint
+            if ($this->migratingFromSubscriptionId !== null) {
+                try {
+                    $oldCheckpoint = $this->checkpointStore->get($this->migratingFromSubscriptionId);
+                    $startPosition = $this->eventReader->maxStreamPositionAtGlobalPosition($streamName, $oldCheckpoint->position);
+
+                    $this->appendToActivity($log, 'migration_checkpoint', 'derived checkpoint from all-stream subscription', [
+                        'migrating_from' => $this->migratingFromSubscriptionId,
+                        'old_global_position' => $oldCheckpoint->position,
+                        'derived_stream_position' => $startPosition,
+                    ]);
+                } catch (Checkpoints\CheckpointNotFound) {
+                    // Old subscription has no checkpoint, start from beginning
+                }
+            }
+
+            $checkpoint = new Checkpoints\Checkpoint($streamIdentifier, $startPosition);
+            $this->checkpointStore->store($checkpoint);
         }
 
         $maxPosition = $this->eventReader->maxStreamPosition($streamName);
@@ -66,17 +88,14 @@ final readonly class StreamSubscription
         $this->storeLog($log);
 
         foreach ($storedEvents as $storedEvent) {
-            $retryResult = EventHandlerWithRetry::handle(
-                $this->messageConsumer,
-                $this->storedMessageToContext($storedEvent),
-            );
-
-            if ($retryResult !== null) {
+            try {
+                $this->messageConsumer->handle($this->storedMessageToContext($storedEvent));
+            } catch (\Throwable $e) {
                 $this->poisonMessageRecorder?->record(
                     $this->subscriptionId,
                     $storedEvent,
-                    $retryResult->exception,
-                    $retryResult->retryCount,
+                    $e,
+                    0,
                 );
 
                 $this->appendToActivity($log, 'poison_message', 'event marked as poison', [
@@ -84,11 +103,13 @@ final readonly class StreamSubscription
                     'stream_name' => $storedEvent->streamName,
                     'event_type' => $storedEvent->eventType,
                     'failure_mode' => $this->failureMode->value,
-                    'error' => $retryResult->exception->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
 
+                $this->storeLog($log);
+
                 match ($effectiveFailureMode) {
-                    FailureMode::Halt, FailureMode::PauseStream => throw $retryResult->exception,
+                    FailureMode::Halt, FailureMode::PauseStream => throw $e,
                     FailureMode::SkipMessage => null,
                 };
 
@@ -152,6 +173,19 @@ final readonly class StreamSubscription
             globalPosition: $storedEvent->globalPosition,
             occurredAt: $storedEvent->createdAt,
         );
+    }
+
+    public function prepareForReplay(AggregateStreamName $streamName): void
+    {
+        if ($this->messageConsumer instanceof MessageConsumerThatResetsStreamBeforeReplay) {
+            $this->messageConsumer->prepareStreamReplay($streamName);
+        }
+
+        $checkpoint = new Checkpoints\Checkpoint(
+            $this->getId($streamName),
+            $this->streamOptions->startingFromPosition,
+        );
+        $this->checkpointStore->store($checkpoint);
     }
 
     public function getId(StreamName $streamName): string

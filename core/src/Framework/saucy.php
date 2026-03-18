@@ -25,6 +25,10 @@ return [
         'keep_processing_without_new_messages_before_stop_in_seconds' => 5,
     ],
 
+    'dynamodb' => [
+        'prefix' => env('SAUCY_DYNAMODB_PREFIX', ''),
+    ],
+
     'activity_log_retention_days' => null,
 
     'poison_messages' => [

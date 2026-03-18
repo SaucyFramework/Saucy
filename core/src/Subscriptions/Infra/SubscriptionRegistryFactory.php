@@ -104,6 +104,7 @@ final readonly class SubscriptionRegistryFactory
             failureMode: $projectorConfig->failureMode,
             poisonMessageRecorder: $application->make(PoisonMessageRecorder::class),
             activityStreamLogger: $application->make(ActivityStreamLogger::class),
+            migratingFromSubscriptionId: $projectorConfig->migratingFromSubscriptionId,
         );
     }
 

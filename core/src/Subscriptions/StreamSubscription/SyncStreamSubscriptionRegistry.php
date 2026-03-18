@@ -22,7 +22,7 @@ final readonly class SyncStreamSubscriptionRegistry
 
     public function get(string $subscriptionId): StreamSubscription
     {
-        return $this->streams[$subscriptionId] ?? throw new \Exception("Subscription not found: $subscriptionId");
+        return $this->streams[$subscriptionId] ?? throw new \RuntimeException("Subscription not found: $subscriptionId");
     }
 
     /**

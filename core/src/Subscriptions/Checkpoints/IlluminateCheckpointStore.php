@@ -21,7 +21,7 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
             ->first();
 
         if (!$row) {
-            CheckpointNotFound::forStream($streamIdentifier);
+            throw CheckpointNotFound::forStream($streamIdentifier);
         }
 
         return new Checkpoint(
@@ -60,4 +60,5 @@ final readonly class IlluminateCheckpointStore implements CheckpointStore
             ))
             ->toArray();
     }
+
 }

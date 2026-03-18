@@ -11,6 +11,7 @@ use Saucy\Core\Command\CommandBus;
 use Saucy\Core\Command\TaskMapCommandHandler;
 use Saucy\Core\Events\Streams\AggregateRootStreamNameMapper;
 use Saucy\Core\Events\Streams\StreamNameMapper;
+use Saucy\Core\Laravel\Commands\BackfillAggregateInstancesCommand;
 use Saucy\Core\Laravel\Commands\BuildSaucyCache;
 use Saucy\Core\Laravel\Commands\PoisonMessagesCommand;
 use Saucy\Core\Laravel\Commands\SnapshotPositionsCommand;
@@ -39,7 +40,11 @@ use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageManager;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
+use Saucy\Core\Subscriptions\StreamSubscription\AggregateInstanceRepository;
+use Saucy\Core\Subscriptions\StreamSubscription\IlluminateAggregateInstanceRepository;
+use Saucy\Core\Subscriptions\StreamSubscription\RecordAggregateInstancesAfterPersist;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
+use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionReplayManager;
 use Saucy\Core\Subscriptions\StreamSubscription\SyncStreamSubscriptionRegistry;
 use Saucy\Core\Tracing\TracePersistedEventsHook;
 use Saucy\Core\Tracing\Tracer;
@@ -65,6 +70,7 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__ . '/../../../migrations');
 
         $this->commands([
+            BackfillAggregateInstancesCommand::class,
             BuildSaucyCache::class,
             PoisonMessagesCommand::class,
             SnapshotPositionsCommand::class,
@@ -144,6 +150,14 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->bind(BackgroundReplayManager::class);
 
+        $this->app->bind(AggregateInstanceRepository::class, function (Application $application) {
+            return new IlluminateAggregateInstanceRepository(
+                $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        $this->app->bind(StreamSubscriptionReplayManager::class);
+
         $messageRepository = new IlluminateMessageStorage(
             connection: $this->app->make(DatabaseManager::class)->connection(),
             eventSerializer: new ConstructingPayloadSerializer($this->app->make(TypeMap::class)),
@@ -159,6 +173,7 @@ final class SaucyServiceProvider extends ServiceProvider
             return new HooksMessageStore(
                 $messageRepository,
                 new Hooks(
+                    $application->make(RecordAggregateInstancesAfterPersist::class),
                     $application->make(TriggerSubscriptionProcessesAfterPersist::class),
                     $application->make(PlaySynchronousProjectorsAfterPersist::class),
                     $application->make(TracePersistedEventsHook::class),
