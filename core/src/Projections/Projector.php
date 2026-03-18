@@ -13,5 +13,6 @@ class Projector
         public ?int $commitBatchSize = null,
         public FailureMode $failureMode = FailureMode::Halt,
         public int $startFrom = 0,
+        public ?string $name = null,
     ) {}
 }

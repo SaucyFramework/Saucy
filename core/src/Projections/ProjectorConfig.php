@@ -23,6 +23,7 @@ final readonly class ProjectorConfig implements SerializablePayload
         public FailureMode $failureMode = FailureMode::Halt,
         public int $startFrom = 0,
         public ?string $migratingFromSubscriptionId = null,
+        public ?string $name = null,
     ) {}
 
     public function toPayload(): array
@@ -38,6 +39,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             'failureMode' => $this->failureMode->value,
             'startFrom' => $this->startFrom,
             'migratingFromSubscriptionId' => $this->migratingFromSubscriptionId,
+            'name' => $this->name,
         ];
     }
 
@@ -54,6 +56,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             failureMode: FailureMode::from($payload['failureMode'] ?? FailureMode::Halt->value),
             startFrom: $payload['startFrom'] ?? 0,
             migratingFromSubscriptionId: $payload['migratingFromSubscriptionId'] ?? null,
+            name: $payload['name'] ?? null,
         );
     }
 }

@@ -13,5 +13,6 @@ class AggregateProjector
         public bool $async = true,
         public FailureMode $failureMode = FailureMode::Halt,
         public ?string $migratingFrom = null,
+        public ?string $name = null,
     ) {}
 }

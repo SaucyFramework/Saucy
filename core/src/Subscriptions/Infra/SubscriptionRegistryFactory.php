@@ -11,6 +11,7 @@ use Saucy\Core\Projections\ProjectorType;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscription;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
+use Saucy\Core\Subscriptions\Checkpoints\MigratingKeyCheckpointStore;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
@@ -56,10 +57,34 @@ final readonly class SubscriptionRegistryFactory
         );
     }
 
+    private static function resolveSubscriptionId(ProjectorConfig $projectorConfig): string
+    {
+        return $projectorConfig->name ?? (string) Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake();
+    }
+
+    /**
+     * Computes the old FQN-based subscription ID that aggregate projectors used before.
+     */
+    private static function legacyStreamSubscriptionId(ProjectorConfig $projectorConfig): string
+    {
+        return (string) Str::of($projectorConfig->projectorClass)->snake();
+    }
+
     private static function buildAllStreamSubscription(ProjectorConfig $projectorConfig, TypeMap $typeMap, Application $application): AllStreamSubscription
     {
+        $subscriptionId = self::resolveSubscriptionId($projectorConfig);
+        $checkpointStore = $application->make(CheckpointStore::class);
+
+        // If a custom name was provided, migrate from the old auto-generated name
+        if ($projectorConfig->name !== null) {
+            $oldId = (string) Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake();
+            if ($oldId !== $subscriptionId) {
+                $checkpointStore = new MigratingKeyCheckpointStore($checkpointStore, $oldId, $subscriptionId);
+            }
+        }
+
         return new AllStreamSubscription(
-            subscriptionId: Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake(),
+            subscriptionId: $subscriptionId,
             streamOptions: new StreamOptions(
                 pageSize: $projectorConfig->pageSize ?? config('saucy.all_stream_projection.page_size', 10), // @phpstan-ignore-line
                 commitBatchSize: $projectorConfig->commitBatchSize ?? config('saucy.all_stream_projection.commit_batch_size', 1), // @phpstan-ignore-line
@@ -72,7 +97,7 @@ final readonly class SubscriptionRegistryFactory
             messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(AllStreamReader::class),
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
-            checkpointStore: $application->make(CheckpointStore::class),
+            checkpointStore: $checkpointStore,
             streamNameTypeMap: $typeMap,
             activityStreamLogger: $application->make(ActivityStreamLogger::class),
             failureMode: $projectorConfig->failureMode,
@@ -87,8 +112,17 @@ final readonly class SubscriptionRegistryFactory
             throw new \Exception('Aggregate type is required for aggregate instance projectors');
         }
 
+        $subscriptionId = self::resolveSubscriptionId($projectorConfig);
+        $checkpointStore = $application->make(CheckpointStore::class);
+
+        // Migrate from old FQN-based subscription ID to new short name
+        $oldId = self::legacyStreamSubscriptionId($projectorConfig);
+        if ($oldId !== $subscriptionId) {
+            $checkpointStore = new MigratingKeyCheckpointStore($checkpointStore, $oldId, $subscriptionId);
+        }
+
         return new StreamSubscription(
-            subscriptionId: Str::of($projectorConfig->projectorClass)->snake(),
+            subscriptionId: $subscriptionId,
             aggregateType: $projectorConfig->aggregateType,
             streamOptions: new StreamOptions(
                 eventTypes: self::mapEventTypes($typeMap, $projectorConfig),
@@ -99,7 +133,7 @@ final readonly class SubscriptionRegistryFactory
             messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(StreamReader::class),
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
-            checkpointStore: $application->make(CheckpointStore::class),
+            checkpointStore: $checkpointStore,
             streamNameTypeMap: $typeMap,
             failureMode: $projectorConfig->failureMode,
             poisonMessageRecorder: $application->make(PoisonMessageRecorder::class),

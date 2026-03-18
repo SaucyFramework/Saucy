@@ -38,6 +38,7 @@ final readonly class ProjectorMapBuilder
                     commitBatchSize: $projectionAttribute->commitBatchSize,
                     failureMode: $projectionAttribute->failureMode,
                     startFrom: $projectionAttribute->startFrom,
+                    name: $projectionAttribute->name,
                 ),
                 AggregateProjector::class => new ProjectorConfig(
                     projectorClass: $projectorClass,
@@ -47,6 +48,7 @@ final readonly class ProjectorMapBuilder
                     async: $projectionAttribute->async,
                     failureMode: $projectionAttribute->failureMode,
                     migratingFromSubscriptionId: $projectionAttribute->migratingFrom,
+                    name: $projectionAttribute->name,
                 ),
                 default => throw new \Exception("projection attribute not supported"),
             };
