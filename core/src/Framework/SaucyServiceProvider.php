@@ -100,33 +100,33 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->scoped(Tracer::class, fn() => new Tracer());
 
-        $this->app->bind(RunningProcesses::class, function (Application $application) {
+        $this->app->singleton(RunningProcesses::class, function (Application $application) {
             return new IlluminateRunningProcesses(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });
 
-        $this->app->bind(CheckpointStore::class, function (Application $application) {
+        $this->app->singleton(CheckpointStore::class, function (Application $application) {
             return new IlluminateCheckpointStore(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });
 
-        $this->app->bind(ActivityStreamLogger::class, function (Application $application) {
+        $this->app->singleton(ActivityStreamLogger::class, function (Application $application) {
             return $application->make(IlluminateActivityStreamLogger::class);
         });
 
-        $this->app->bind(ProjectionSnapshotStore::class, function (Application $application) {
+        $this->app->singleton(ProjectionSnapshotStore::class, function (Application $application) {
             return $application->make(IlluminateProjectionSnapshotStore::class);
         });
 
-        $this->app->bind(PoisonMessageStore::class, function (Application $application) {
+        $this->app->singleton(PoisonMessageStore::class, function (Application $application) {
             return new IlluminatePoisonMessageStore(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });
 
-        $this->app->bind(PoisonMessageRecorder::class, function (Application $application) {
+        $this->app->singleton(PoisonMessageRecorder::class, function (Application $application) {
             $notifiable = null;
             /** @var class-string|null $notifiableClass */
             $notifiableClass = config('saucy.poison_messages.notification.notifiable');
@@ -140,23 +140,23 @@ final class SaucyServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->bind(PoisonMessageManager::class);
+        $this->app->singleton(PoisonMessageManager::class);
 
-        $this->app->bind(BackgroundReplayStore::class, function (Application $application) {
+        $this->app->singleton(BackgroundReplayStore::class, function (Application $application) {
             return new IlluminateBackgroundReplayStore(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });
 
-        $this->app->bind(BackgroundReplayManager::class);
+        $this->app->singleton(BackgroundReplayManager::class);
 
-        $this->app->bind(AggregateInstanceRepository::class, function (Application $application) {
+        $this->app->singleton(AggregateInstanceRepository::class, function (Application $application) {
             return new IlluminateAggregateInstanceRepository(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });
 
-        $this->app->bind(StreamSubscriptionReplayManager::class);
+        $this->app->singleton(StreamSubscriptionReplayManager::class);
 
         $messageRepository = new IlluminateMessageStorage(
             connection: $this->app->make(DatabaseManager::class)->connection(),
@@ -185,15 +185,15 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $projectorMap = $saucyProjectMaps->projectorMap;
 
-        $this->app->bind(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
+        $this->app->singleton(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
-        $this->app->bind(StreamSubscriptionRegistry::class, fn(Application $application) => new StreamSubscriptionRegistry(
+        $this->app->singleton(StreamSubscriptionRegistry::class, fn(Application $application) => new StreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
-        $this->app->bind(SyncStreamSubscriptionRegistry::class, fn(Application $application) => new SyncStreamSubscriptionRegistry(
+        $this->app->singleton(SyncStreamSubscriptionRegistry::class, fn(Application $application) => new SyncStreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildSyncStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
 
