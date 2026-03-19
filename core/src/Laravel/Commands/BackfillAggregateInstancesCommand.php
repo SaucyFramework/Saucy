@@ -21,29 +21,41 @@ final class BackfillAggregateInstancesCommand extends Command
         $this->info('Backfilling aggregate instances from event_store...');
 
         $connection = $databaseManager->connection();
-        $cursor = $connection->table('event_store')
-            ->selectRaw('stream_type, stream_name, MAX(stream_position) as max_position')
-            ->groupBy('stream_type', 'stream_name')
-            ->cursor();
 
         $count = 0;
         $skipped = 0;
-        foreach ($cursor as $row) {
-            // Stream names use '###' delimiter (see AggregateStreamName::DELIMITER)
-            $parts = explode('###', $row->stream_name);
-            if (count($parts) !== 2) {
-                $skipped++;
-                $this->warn("Skipped stream with unexpected name format: {$row->stream_name}");
-                continue;
+        $chunkSize = 5000;
+        $offset = 0;
+
+        do {
+            $rows = $connection->table('event_store')
+                ->selectRaw('stream_type, stream_name, MAX(stream_position) as max_position')
+                ->groupBy('stream_type', 'stream_name')
+                ->orderBy('stream_type')
+                ->orderBy('stream_name')
+                ->offset($offset)
+                ->limit($chunkSize)
+                ->get();
+
+            foreach ($rows as $row) {
+                // Stream names use '###' delimiter (see AggregateStreamName::DELIMITER)
+                $parts = explode('###', $row->stream_name);
+                if (count($parts) !== 2) {
+                    $skipped++;
+                    $this->warn("Skipped stream with unexpected name format: {$row->stream_name}");
+                    continue;
+                }
+
+                $repository->record($row->stream_type, $parts[1], (int) $row->max_position);
+                $count++;
+
+                if ($count % 1000 === 0) {
+                    $this->info("  Processed {$count} aggregate instances...");
+                }
             }
 
-            $repository->record($row->stream_type, $parts[1], (int) $row->max_position);
-            $count++;
-
-            if ($count % 1000 === 0) {
-                $this->info("  Processed {$count} aggregate instances...");
-            }
-        }
+            $offset += $chunkSize;
+        } while ($rows->count() === $chunkSize);
 
         if ($skipped > 0) {
             $this->warn("Skipped {$skipped} streams with unexpected name format.");

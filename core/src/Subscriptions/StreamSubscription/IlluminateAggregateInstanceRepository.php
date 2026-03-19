@@ -32,12 +32,13 @@ final readonly class IlluminateAggregateInstanceRepository implements AggregateI
      */
     public function getAllForType(string $aggregateType): Generator
     {
-        $cursor = $this->connection->table($this->tableName)
+        $lazy = $this->connection->table($this->tableName)
             ->where('aggregate_type', $aggregateType)
             ->orderBy('aggregate_id')
-            ->cursor();
+            ->lazy(1000);
 
-        foreach ($cursor as $row) {
+        foreach ($lazy as $row) {
+            /** @var object{aggregate_id: string, stream_position: int} $row */
             yield (object) [
                 'aggregateId' => $row->aggregate_id,
                 'streamPosition' => (int) $row->stream_position,
