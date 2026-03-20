@@ -25,6 +25,10 @@ return [
         'keep_processing_without_new_messages_before_stop_in_seconds' => 5,
     ],
 
+    // When true, subscription triggering after event persist is deferred to a single queued job
+    // instead of acquiring locks and dispatching jobs inline. Reduces DB queries in the request path.
+    'defer_subscription_triggers' => false,
+
     'dynamodb' => [
         'prefix' => env('SAUCY_DYNAMODB_PREFIX', ''),
     ],

@@ -50,4 +50,9 @@ final class RunAllSubscriptionsInSync
         }
         return false;
     }
+
+    public function hasAnySyncRequirements(): bool
+    {
+        return $this->runSync || count($this->subscriptions) > 0;
+    }
 }

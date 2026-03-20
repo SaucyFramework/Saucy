@@ -27,6 +27,7 @@ use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Checkpoints\IlluminateCheckpointStore;
+use Saucy\Core\Subscriptions\Infra\DeferredTriggerSubscriptionProcessesAfterPersist;
 use Saucy\Core\Subscriptions\Infra\IlluminateRunningProcesses;
 use Saucy\Core\Subscriptions\Infra\PlaySynchronousProjectorsAfterPersist;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
@@ -171,12 +172,23 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->app->bind(AllStreamReader::class, fn() => $messageRepository);
         $this->app->bind(StreamReader::class, fn() => $messageRepository);
 
-        $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($messageRepository) {
+        $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($messageRepository, $typeMap) {
+            $syncTrigger = $application->make(TriggerSubscriptionProcessesAfterPersist::class);
+
+            $triggerHook = config('saucy.defer_subscription_triggers', false)
+                ? new DeferredTriggerSubscriptionProcessesAfterPersist(
+                    $typeMap,
+                    $application->make(RunAllSubscriptionsInSync::class),
+                    $syncTrigger,
+                    config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
+                )
+                : $syncTrigger;
+
             return new HooksMessageStore(
                 $messageRepository,
                 new Hooks(
                     $application->make(RecordAggregateInstancesAfterPersist::class),
-                    $application->make(TriggerSubscriptionProcessesAfterPersist::class),
+                    $triggerHook,
                     $application->make(PlaySynchronousProjectorsAfterPersist::class),
                     $application->make(TracePersistedEventsHook::class),
                 ),
