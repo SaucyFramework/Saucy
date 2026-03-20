@@ -173,9 +173,16 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->app->bind(StreamReader::class, fn() => $messageRepository);
 
         $this->app->bind(AllStreamMessageRepository::class, function (Application $application) use ($messageRepository, $typeMap) {
+            $syncTrigger = $application->make(TriggerSubscriptionProcessesAfterPersist::class);
+
             $triggerHook = config('saucy.defer_subscription_triggers', false)
-                ? new DeferredTriggerSubscriptionProcessesAfterPersist($typeMap, config('saucy.all_stream_projection.queue')) // @phpstan-ignore-line
-                : $application->make(TriggerSubscriptionProcessesAfterPersist::class);
+                ? new DeferredTriggerSubscriptionProcessesAfterPersist(
+                    $typeMap,
+                    $application->make(RunAllSubscriptionsInSync::class),
+                    $syncTrigger,
+                    config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
+                )
+                : $syncTrigger;
 
             return new HooksMessageStore(
                 $messageRepository,
