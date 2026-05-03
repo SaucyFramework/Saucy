@@ -93,6 +93,7 @@ final readonly class SubscriptionRegistryFactory
                 processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'), // @phpstan-ignore-line
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
+                visibilityDelaySeconds: $projectorConfig->visibilityDelaySeconds,
             ),
             messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(AllStreamReader::class),

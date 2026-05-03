@@ -63,6 +63,17 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
 
     /**
      * @return Generator<int, StoredEvent>
+     *
+     * `visibilityDelaySeconds` guards against the auto-increment commit-order
+     * gap: MySQL reserves auto-increment values at INSERT time but rows only
+     * become visible at COMMIT. Under concurrent writers, an INSERT that
+     * reserves position N can commit *after* a later position N+M is already
+     * visible — without the filter, a poll between the two commits would
+     * advance the checkpoint past N+M and then never deliver N when it
+     * eventually commits. Filtering by `created_at < NOW() - delay` waits
+     * out the worst-case commit window so any in-flight gap below the
+     * horizon has had time to either commit (and become visible to us) or
+     * roll back (and stay invisible forever).
      */
     public function paginate(AllStreamQuery $streamQuery): Generator
     {
@@ -72,10 +83,26 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
                 return $query->whereIn('message_type', $streamQuery->eventTypes);
             })
+            ->when($streamQuery->visibilityDelaySeconds > 0, function ($query) use ($streamQuery) {
+                return $query->where('created_at', '<', now('UTC')->subSeconds($streamQuery->visibilityDelaySeconds)->toDateTimeString());
+            })
             ->limit($streamQuery->limit)
             ->orderBy('global_position')
             ->cursor(),
         );
+    }
+
+    public function maxEventIdWithVisibilityDelay(int $visibilityDelaySeconds): int
+    {
+        if ($visibilityDelaySeconds <= 0) {
+            return $this->maxEventId();
+        }
+
+        $max = $this->connection->table($this->tableName)
+            ->where('created_at', '<', now('UTC')->subSeconds($visibilityDelaySeconds)->toDateTimeString())
+            ->max('global_position');
+
+        return $max === null ? 0 : (int) $max;
     }
 
     /**

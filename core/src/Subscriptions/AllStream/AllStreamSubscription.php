@@ -88,12 +88,19 @@ final readonly class AllStreamSubscription
             $checkpoint = new Checkpoints\Checkpoint($this->subscriptionId, $this->streamOptions->startingFromPosition);
         }
 
-        $maxPosition = $this->eventReader->maxEventId();
+        // For the empty-poll checkpoint advance below: when a visibility delay
+        // is configured, we MUST NOT advance past positions that haven't yet
+        // cleared the delay window — otherwise we'd re-introduce the gap bug
+        // we're trying to prevent. With no delay, this is the global head.
+        $maxPosition = $this->streamOptions->visibilityDelaySeconds > 0
+            ? $this->eventReader->maxEventIdWithVisibilityDelay($this->streamOptions->visibilityDelaySeconds)
+            : $this->eventReader->maxEventId();
 
         $this->appendToActivity($log, 'loading_events', 'loading events', [
             'fromPosition' =>  $checkpoint->position,
             'limit' =>  $this->streamOptions->pageSize,
             'eventTypes' =>  $this->streamOptions->eventTypes,
+            'visibilityDelaySeconds' => $this->streamOptions->visibilityDelaySeconds,
             'time' => time(),
             'run_time' => time() - $startTime,
         ]);
@@ -105,6 +112,7 @@ final readonly class AllStreamSubscription
                 fromPosition: $checkpoint->position,
                 limit: $processBatches ? $this->messageConsumer->getBatchSize() : $this->streamOptions->pageSize,
                 eventTypes: $this->streamOptions->eventTypes,
+                visibilityDelaySeconds: $this->streamOptions->visibilityDelaySeconds,
             ),
         );
 
