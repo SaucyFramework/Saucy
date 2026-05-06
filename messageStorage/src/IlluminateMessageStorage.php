@@ -62,19 +62,34 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
     }
 
     /**
+     * Reads the unfiltered all-stream window. Gap detection in the
+     * subscription needs to observe the raw `global_position` sequence;
+     * event-type filtering happens at delivery time.
+     *
      * @return Generator<int, StoredEvent>
      */
     public function paginate(AllStreamQuery $streamQuery): Generator
     {
         return $this->mapRowsToStoredEvents(
             $this->connection->table($this->tableName)
-            ->where('global_position', '>', $streamQuery->fromPosition)
-            ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
-                return $query->whereIn('message_type', $streamQuery->eventTypes);
-            })
-            ->limit($streamQuery->limit)
-            ->orderBy('global_position')
-            ->cursor(),
+                ->where('global_position', '>', $streamQuery->fromPosition)
+                ->limit($streamQuery->limit)
+                ->orderBy('global_position')
+                ->cursor(),
+        );
+    }
+
+    public function fetchByGlobalPositions(array $positions): Generator
+    {
+        if ($positions === []) {
+            return;
+        }
+
+        yield from $this->mapRowsToStoredEvents(
+            $this->connection->table($this->tableName)
+                ->whereIn('global_position', $positions)
+                ->orderBy('global_position')
+                ->cursor(),
         );
     }
 

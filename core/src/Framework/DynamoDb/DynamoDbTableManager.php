@@ -24,6 +24,11 @@ final readonly class DynamoDbTableManager
         return $this->prefix . 'saucy_processes';
     }
 
+    public function gapsTableName(): string
+    {
+        return $this->prefix . 'saucy_subscription_gaps';
+    }
+
     /**
      * Create all Saucy DynamoDB tables. Safe to call multiple times — skips existing tables.
      */
@@ -31,6 +36,31 @@ final readonly class DynamoDbTableManager
     {
         $this->createCheckpointTable();
         $this->createProcessesTable();
+        $this->createGapsTable();
+    }
+
+    public function createGapsTable(): void
+    {
+        $tableName = $this->gapsTableName();
+
+        if ($this->tableExists($tableName)) {
+            return;
+        }
+
+        $this->client->createTable([
+            'TableName' => $tableName,
+            'KeySchema' => [
+                ['AttributeName' => 'subscription_id', 'KeyType' => 'HASH'],
+                ['AttributeName' => 'position', 'KeyType' => 'RANGE'],
+            ],
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'subscription_id', 'AttributeType' => 'S'],
+                ['AttributeName' => 'position', 'AttributeType' => 'N'],
+            ],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
+
+        $this->client->waitUntil('TableExists', ['TableName' => $tableName]);
     }
 
     public function createCheckpointTable(): void
@@ -81,6 +111,7 @@ final readonly class DynamoDbTableManager
     {
         $this->deleteTableIfExists($this->checkpointTableName());
         $this->deleteTableIfExists($this->processesTableName());
+        $this->deleteTableIfExists($this->gapsTableName());
     }
 
     private function tableExists(string $tableName): bool
