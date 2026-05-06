@@ -14,6 +14,6 @@ class Projector
         public FailureMode $failureMode = FailureMode::Halt,
         public int $startFrom = 0,
         public ?string $name = null,
-        public int $visibilityDelaySeconds = 0,
+        public ?int $gapTimeoutSeconds = null,
     ) {}
 }

@@ -62,47 +62,35 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
     }
 
     /**
-     * @return Generator<int, StoredEvent>
+     * Reads the unfiltered all-stream window. Gap detection in the
+     * subscription needs to observe the raw `global_position` sequence;
+     * event-type filtering happens at delivery time.
      *
-     * `visibilityDelaySeconds` guards against the auto-increment commit-order
-     * gap: MySQL reserves auto-increment values at INSERT time but rows only
-     * become visible at COMMIT. Under concurrent writers, an INSERT that
-     * reserves position N can commit *after* a later position N+M is already
-     * visible — without the filter, a poll between the two commits would
-     * advance the checkpoint past N+M and then never deliver N when it
-     * eventually commits. Filtering by `created_at < NOW() - delay` waits
-     * out the worst-case commit window so any in-flight gap below the
-     * horizon has had time to either commit (and become visible to us) or
-     * roll back (and stay invisible forever).
+     * @return Generator<int, StoredEvent>
      */
     public function paginate(AllStreamQuery $streamQuery): Generator
     {
         return $this->mapRowsToStoredEvents(
             $this->connection->table($this->tableName)
-            ->where('global_position', '>', $streamQuery->fromPosition)
-            ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
-                return $query->whereIn('message_type', $streamQuery->eventTypes);
-            })
-            ->when($streamQuery->visibilityDelaySeconds > 0, function ($query) use ($streamQuery) {
-                return $query->where('created_at', '<', now('UTC')->subSeconds($streamQuery->visibilityDelaySeconds)->toDateTimeString());
-            })
-            ->limit($streamQuery->limit)
-            ->orderBy('global_position')
-            ->cursor(),
+                ->where('global_position', '>', $streamQuery->fromPosition)
+                ->limit($streamQuery->limit)
+                ->orderBy('global_position')
+                ->cursor(),
         );
     }
 
-    public function maxEventIdWithVisibilityDelay(int $visibilityDelaySeconds): int
+    public function fetchByGlobalPositions(array $positions): Generator
     {
-        if ($visibilityDelaySeconds <= 0) {
-            return $this->maxEventId();
+        if ($positions === []) {
+            return;
         }
 
-        $max = $this->connection->table($this->tableName)
-            ->where('created_at', '<', now('UTC')->subSeconds($visibilityDelaySeconds)->toDateTimeString())
-            ->max('global_position');
-
-        return $max === null ? 0 : (int) $max;
+        yield from $this->mapRowsToStoredEvents(
+            $this->connection->table($this->tableName)
+                ->whereIn('global_position', $positions)
+                ->orderBy('global_position')
+                ->cursor(),
+        );
     }
 
     /**

@@ -12,6 +12,7 @@ use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscription;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Checkpoints\MigratingKeyCheckpointStore;
+use Saucy\Core\Subscriptions\Gaps\GapStore;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageRecorder;
 use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
@@ -93,12 +94,13 @@ final readonly class SubscriptionRegistryFactory
                 processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'), // @phpstan-ignore-line
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
-                visibilityDelaySeconds: $projectorConfig->visibilityDelaySeconds,
+                gapTimeoutSeconds: $projectorConfig->gapTimeoutSeconds ?? config('saucy.all_stream_projection.gap_timeout_seconds', 60), // @phpstan-ignore-line
             ),
             messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(AllStreamReader::class),
             eventSerializer: new ConstructingPayloadSerializer($typeMap),
             checkpointStore: $checkpointStore,
+            gapStore: $application->make(GapStore::class),
             streamNameTypeMap: $typeMap,
             activityStreamLogger: $application->make(ActivityStreamLogger::class),
             failureMode: $projectorConfig->failureMode,

@@ -32,6 +32,7 @@ final readonly class ReplaySubscriptionFactory
             eventReader: $original->eventReader,
             eventSerializer: $original->eventSerializer,
             checkpointStore: $original->checkpointStore,
+            gapStore: $original->gapStore,
             streamNameTypeMap: $original->streamNameTypeMap,
             activityStreamLogger: $original->activityStreamLogger,
             failureMode: FailureMode::Halt,

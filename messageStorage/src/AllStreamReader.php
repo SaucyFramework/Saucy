@@ -7,19 +7,26 @@ use Generator;
 interface AllStreamReader
 {
     /**
+     * Returns events from the all-stream with `global_position > fromPosition`,
+     * ordered by `global_position` ascending, up to `limit` rows.
+     *
+     * Crucially, this method does NOT filter by event type — gap detection
+     * needs to see the unfiltered global sequence. Subscription consumers
+     * filter by event type at delivery time.
+     *
      * @return Generator<int, StoredEvent>
      */
     public function paginate(AllStreamQuery $streamQuery): Generator;
 
-    public function maxEventId(): int;
-
     /**
-     * Returns the highest global_position whose row was inserted at least
-     * `$visibilityDelaySeconds` ago — i.e. the highest position guaranteed
-     * to be safely past the auto-increment commit-order gap. Used by the
-     * all-stream subscription to bound checkpoint advancement on empty polls.
+     * Returns events at the given exact `global_position`s. Used by gap
+     * tracking to re-check whether previously-missing positions have now
+     * become visible (their writer transaction committed).
      *
-     * Returns 0 when no rows pass the filter.
+     * @param array<int> $positions
+     * @return Generator<int, StoredEvent>
      */
-    public function maxEventIdWithVisibilityDelay(int $visibilityDelaySeconds): int;
+    public function fetchByGlobalPositions(array $positions): Generator;
+
+    public function maxEventId(): int;
 }

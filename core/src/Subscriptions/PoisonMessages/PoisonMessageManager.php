@@ -192,17 +192,23 @@ final readonly class PoisonMessageManager
             new AllStreamQuery(
                 fromPosition: $poisonMessage->globalPosition,
                 limit: $checkpoint->position - $poisonMessage->globalPosition,
-                eventTypes: $subscription->streamOptions->eventTypes,
             ),
         );
 
+        $allowedEventTypes = $subscription->streamOptions->eventTypes;
         foreach ($storedEvents as $event) {
             if ($event->globalPosition > $checkpoint->position) {
                 break;
             }
 
-            // Only replay events from the paused stream
+            // Only replay events from the paused stream that match the
+            // subscription's event-type filter (paginate returns the
+            // unfiltered global stream — gap detection needs that).
             if ($event->streamName !== $poisonMessage->streamName) {
+                continue;
+            }
+
+            if ($allowedEventTypes !== null && !in_array($event->eventType, $allowedEventTypes, true)) {
                 continue;
             }
 

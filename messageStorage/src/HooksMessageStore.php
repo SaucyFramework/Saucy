@@ -30,13 +30,13 @@ final readonly class HooksMessageStore implements AllStreamMessageRepository, Al
         return $this->inner->paginate($streamQuery);
     }
 
+    public function fetchByGlobalPositions(array $positions): Generator
+    {
+        return $this->inner->fetchByGlobalPositions($positions);
+    }
+
     public function maxEventId(): int
     {
         return $this->inner->maxEventId();
-    }
-
-    public function maxEventIdWithVisibilityDelay(int $visibilityDelaySeconds): int
-    {
-        return $this->inner->maxEventIdWithVisibilityDelay($visibilityDelaySeconds);
     }
 }

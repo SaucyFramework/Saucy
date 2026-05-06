@@ -27,6 +27,8 @@ use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Checkpoints\IlluminateCheckpointStore;
+use Saucy\Core\Subscriptions\Gaps\GapStore;
+use Saucy\Core\Subscriptions\Gaps\IlluminateGapStore;
 use Saucy\Core\Subscriptions\Infra\DeferredTriggerSubscriptionProcessesAfterPersist;
 use Saucy\Core\Subscriptions\Infra\IlluminateRunningProcesses;
 use Saucy\Core\Subscriptions\Infra\PlaySynchronousProjectorsAfterPersist;
@@ -111,6 +113,12 @@ final class SaucyServiceProvider extends ServiceProvider
 
         $this->app->singleton(CheckpointStore::class, function (Application $application) {
             return new IlluminateCheckpointStore(
+                $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        $this->app->singleton(GapStore::class, function (Application $application) {
+            return new IlluminateGapStore(
                 $application->make(DatabaseManager::class)->connection(),
             );
         });

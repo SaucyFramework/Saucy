@@ -17,6 +17,11 @@ return [
         'keep_processing_without_new_messages_before_stop_in_seconds' => 5,
         'commit_batch_size' => 1,
         'page_size' => 50,
+        // How long an unresolved gap in the auto-increment sequence stays
+        // tracked before it's declared a permanently rolled-back write
+        // and forgotten. Set comfortably above your worst-case write
+        // commit window. Default 60s.
+        'gap_timeout_seconds' => 60,
     ],
 
     'stream_projection' => [
