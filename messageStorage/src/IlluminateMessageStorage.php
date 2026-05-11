@@ -28,9 +28,13 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
         $streamNameType = $this->streamNameTypeMap->instanceToType($streamName);
         $streamType = $streamName->type();
         $streamName = $streamName->toString();
+        // Format with millisecond precision so visibility-delay filtering
+        // works correctly at sub-second granularity. Requires the column
+        // to be DATETIME(3) or higher — see migration 0000_00_00_000011.
+        $createdAt = now()->format('Y-m-d H:i:s.v');
         $this->connection->table($this->tableName)->insert(
             array_map(
-                function (StreamEvent $event) use ($streamName, $streamNameType, $streamType) {
+                function (StreamEvent $event) use ($streamName, $streamNameType, $streamType, $createdAt) {
                     $serializationResult = $this->eventSerializer->serialize($event->payload);
                     return [
                         'message_id' => $event->eventId,
@@ -41,7 +45,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                         'stream_position' => $event->position,
                         'payload' => $serializationResult->payload,
                         'metadata' => json_encode($event->metadata), // move this to serializer as well?
-                        'created_at' => now(),
+                        'created_at' => $createdAt,
                     ];
                 },
                 $events,
@@ -64,7 +68,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
     /**
      * @return Generator<int, StoredEvent>
      *
-     * `visibilityDelaySeconds` guards against the auto-increment commit-order
+     * `visibilityDelayMs` guards against the auto-increment commit-order
      * gap: MySQL reserves auto-increment values at INSERT time but rows only
      * become visible at COMMIT. Under concurrent writers, an INSERT that
      * reserves position N can commit *after* a later position N+M is already
@@ -74,6 +78,9 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
      * out the worst-case commit window so any in-flight gap below the
      * horizon has had time to either commit (and become visible to us) or
      * roll back (and stay invisible forever).
+     *
+     * Sub-second values require `event_store.created_at` to have at least
+     * millisecond precision (DATETIME(3) on MySQL).
      */
     public function paginate(AllStreamQuery $streamQuery): Generator
     {
@@ -83,8 +90,8 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
                 return $query->whereIn('message_type', $streamQuery->eventTypes);
             })
-            ->when($streamQuery->visibilityDelaySeconds > 0, function ($query) use ($streamQuery) {
-                return $query->where('created_at', '<', now('UTC')->subSeconds($streamQuery->visibilityDelaySeconds)->toDateTimeString());
+            ->when($streamQuery->visibilityDelayMs > 0, function ($query) use ($streamQuery) {
+                return $query->where('created_at', '<', $this->visibilityHorizon($streamQuery->visibilityDelayMs));
             })
             ->limit($streamQuery->limit)
             ->orderBy('global_position')
@@ -92,17 +99,22 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
         );
     }
 
-    public function maxEventIdWithVisibilityDelay(int $visibilityDelaySeconds): int
+    public function maxEventIdWithVisibilityDelay(int $visibilityDelayMs): int
     {
-        if ($visibilityDelaySeconds <= 0) {
+        if ($visibilityDelayMs <= 0) {
             return $this->maxEventId();
         }
 
         $max = $this->connection->table($this->tableName)
-            ->where('created_at', '<', now('UTC')->subSeconds($visibilityDelaySeconds)->toDateTimeString())
+            ->where('created_at', '<', $this->visibilityHorizon($visibilityDelayMs))
             ->max('global_position');
 
         return $max === null ? 0 : (int) $max;
+    }
+
+    private function visibilityHorizon(int $visibilityDelayMs): string
+    {
+        return now('UTC')->subMilliseconds($visibilityDelayMs)->format('Y-m-d H:i:s.v');
     }
 
     /**

@@ -35,8 +35,8 @@ final readonly class HooksMessageStore implements AllStreamMessageRepository, Al
         return $this->inner->maxEventId();
     }
 
-    public function maxEventIdWithVisibilityDelay(int $visibilityDelaySeconds): int
+    public function maxEventIdWithVisibilityDelay(int $visibilityDelayMs): int
     {
-        return $this->inner->maxEventIdWithVisibilityDelay($visibilityDelaySeconds);
+        return $this->inner->maxEventIdWithVisibilityDelay($visibilityDelayMs);
     }
 }

@@ -92,15 +92,15 @@ final readonly class AllStreamSubscription
         // is configured, we MUST NOT advance past positions that haven't yet
         // cleared the delay window — otherwise we'd re-introduce the gap bug
         // we're trying to prevent. With no delay, this is the global head.
-        $maxPosition = $this->streamOptions->visibilityDelaySeconds > 0
-            ? $this->eventReader->maxEventIdWithVisibilityDelay($this->streamOptions->visibilityDelaySeconds)
+        $maxPosition = $this->streamOptions->visibilityDelayMs > 0
+            ? $this->eventReader->maxEventIdWithVisibilityDelay($this->streamOptions->visibilityDelayMs)
             : $this->eventReader->maxEventId();
 
         $this->appendToActivity($log, 'loading_events', 'loading events', [
             'fromPosition' =>  $checkpoint->position,
             'limit' =>  $this->streamOptions->pageSize,
             'eventTypes' =>  $this->streamOptions->eventTypes,
-            'visibilityDelaySeconds' => $this->streamOptions->visibilityDelaySeconds,
+            'visibilityDelayMs' => $this->streamOptions->visibilityDelayMs,
             'time' => time(),
             'run_time' => time() - $startTime,
         ]);
@@ -112,7 +112,7 @@ final readonly class AllStreamSubscription
                 fromPosition: $checkpoint->position,
                 limit: $processBatches ? $this->messageConsumer->getBatchSize() : $this->streamOptions->pageSize,
                 eventTypes: $this->streamOptions->eventTypes,
-                visibilityDelaySeconds: $this->streamOptions->visibilityDelaySeconds,
+                visibilityDelayMs: $this->streamOptions->visibilityDelayMs,
             ),
         );
 

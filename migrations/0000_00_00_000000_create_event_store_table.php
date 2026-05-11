@@ -21,7 +21,7 @@ return new class extends Migration
             $table->unsignedInteger('stream_position');
             $table->json('payload');
             $table->json('metadata')->nullable();
-            $table->dateTime('created_at');
+            $table->dateTime('created_at', 3);
 
             $table->unique(['stream_name', 'message_id'], 'idempotency_index');
             $table->unique(['stream_name', 'stream_position'], 'optimistic_lock_index');
