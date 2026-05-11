@@ -28,9 +28,13 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
         $streamNameType = $this->streamNameTypeMap->instanceToType($streamName);
         $streamType = $streamName->type();
         $streamName = $streamName->toString();
+        // Format with millisecond precision so visibility-delay filtering
+        // works correctly at sub-second granularity. Requires the column
+        // to be DATETIME(3) or higher — see migration 0000_00_00_000011.
+        $createdAt = now()->format('Y-m-d H:i:s.v');
         $this->connection->table($this->tableName)->insert(
             array_map(
-                function (StreamEvent $event) use ($streamName, $streamNameType, $streamType) {
+                function (StreamEvent $event) use ($streamName, $streamNameType, $streamType, $createdAt) {
                     $serializationResult = $this->eventSerializer->serialize($event->payload);
                     return [
                         'message_id' => $event->eventId,
@@ -41,7 +45,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
                         'stream_position' => $event->position,
                         'payload' => $serializationResult->payload,
                         'metadata' => json_encode($event->metadata), // move this to serializer as well?
-                        'created_at' => now(),
+                        'created_at' => $createdAt,
                     ];
                 },
                 $events,
@@ -63,6 +67,20 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
 
     /**
      * @return Generator<int, StoredEvent>
+     *
+     * `visibilityDelayMs` guards against the auto-increment commit-order
+     * gap: MySQL reserves auto-increment values at INSERT time but rows only
+     * become visible at COMMIT. Under concurrent writers, an INSERT that
+     * reserves position N can commit *after* a later position N+M is already
+     * visible — without the filter, a poll between the two commits would
+     * advance the checkpoint past N+M and then never deliver N when it
+     * eventually commits. Filtering by `created_at < NOW() - delay` waits
+     * out the worst-case commit window so any in-flight gap below the
+     * horizon has had time to either commit (and become visible to us) or
+     * roll back (and stay invisible forever).
+     *
+     * Sub-second values require `event_store.created_at` to have at least
+     * millisecond precision (DATETIME(3) on MySQL).
      */
     public function paginate(AllStreamQuery $streamQuery): Generator
     {
@@ -72,10 +90,31 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
             ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
                 return $query->whereIn('message_type', $streamQuery->eventTypes);
             })
+            ->when($streamQuery->visibilityDelayMs > 0, function ($query) use ($streamQuery) {
+                return $query->where('created_at', '<', $this->visibilityHorizon($streamQuery->visibilityDelayMs));
+            })
             ->limit($streamQuery->limit)
             ->orderBy('global_position')
             ->cursor(),
         );
+    }
+
+    public function maxEventIdWithVisibilityDelay(int $visibilityDelayMs): int
+    {
+        if ($visibilityDelayMs <= 0) {
+            return $this->maxEventId();
+        }
+
+        $max = $this->connection->table($this->tableName)
+            ->where('created_at', '<', $this->visibilityHorizon($visibilityDelayMs))
+            ->max('global_position');
+
+        return $max === null ? 0 : (int) $max;
+    }
+
+    private function visibilityHorizon(int $visibilityDelayMs): string
+    {
+        return now('UTC')->subMilliseconds($visibilityDelayMs)->format('Y-m-d H:i:s.v');
     }
 
     /**
