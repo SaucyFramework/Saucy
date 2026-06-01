@@ -66,15 +66,37 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
      */
     public function paginate(AllStreamQuery $streamQuery): Generator
     {
-        return $this->mapRowsToStoredEvents(
-            $this->connection->table($this->tableName)
+        // Resolve the matching global positions first, selecting only the indexed
+        // `global_position` column. This keeps the `(message_type, global_position)`
+        // index covering, so the `ORDER BY global_position ... LIMIT` is satisfied by a
+        // narrow sort over 8-byte integers.
+        //
+        // Selecting whole rows here (the previous `SELECT *`) forces MySQL 8 to
+        // filesort the full rows — including the large `payload`/`metadata` JSON
+        // columns — because a `message_type IN (...)` filter spans multiple index
+        // ranges that can no longer feed the `ORDER BY` directly. With wide JSON
+        // payloads that sort can exhaust `sort_buffer_size` and fail with
+        // ER_OUT_OF_SORTMEMORY (errno 1038), as seen on PlanetScale/Vitess. Fetching
+        // the rows afterwards by primary key avoids putting the payload in the sort.
+        $positions = $this->connection->table($this->tableName)
             ->where('global_position', '>', $streamQuery->fromPosition)
             ->when($streamQuery->eventTypes !== null, function ($query) use ($streamQuery) {
                 return $query->whereIn('message_type', $streamQuery->eventTypes);
             })
-            ->limit($streamQuery->limit)
             ->orderBy('global_position')
-            ->cursor(),
+            ->limit($streamQuery->limit)
+            ->pluck('global_position')
+            ->all();
+
+        if ($positions === []) {
+            return;
+        }
+
+        yield from $this->mapRowsToStoredEvents(
+            $this->connection->table($this->tableName)
+                ->whereIn('global_position', $positions)
+                ->orderBy('global_position')
+                ->cursor(),
         );
     }
 
@@ -101,7 +123,7 @@ final readonly class IlluminateMessageStorage implements AllStreamMessageReposit
 
     /**
      * @param LazyCollection<int, object> $rows
-     * @return Generator
+     * @return Generator<int, StoredEvent>
      * @throws \Exception
      */
     private function mapRowsToStoredEvents(LazyCollection $rows): Generator
