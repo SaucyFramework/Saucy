@@ -11,8 +11,53 @@ final readonly class IlluminatePoisonMessageStore implements PoisonMessageStore
         private string $tableName = 'poison_messages',
     ) {}
 
+    /**
+     * Records a poisoned event, collapsing repeats of the SAME event onto the
+     * row that is already open for it.
+     *
+     * A subscription in FailureMode::Halt rethrows after poisoning, which
+     * aborts the poll WITHOUT advancing the checkpoint — deliberately, so it
+     * stays parked on the bad event and heals itself once the handler is
+     * fixed. But the crashed poll job also releases its RunningProcesses lock,
+     * so the next tick starts a fresh process that re-reads the same
+     * checkpoint, hits the same event and records it again. A blind INSERT
+     * therefore writes one row per poll cycle for as long as the projector
+     * stays stuck: an application running this saw 9,003 rows covering only
+     * 103 distinct (subscription, event) pairs, 2,910 of them for a single
+     * event over two days.
+     *
+     * Only a still-`poisoned` row is reused. A resolved or skipped row is
+     * closed history, so an event that poisons again after being cleared opens
+     * a new one.
+     *
+     * `poisoned_at` keeps the FIRST failure — the row reads as "stuck since",
+     * and a retention purge ages it from then. `updated_at` is the latest
+     * failure, and `retry_count` accumulates handler attempts across every
+     * cycle rather than counting cycles.
+     */
     public function store(PoisonMessage $message): void
     {
+        $openRowId = $this->connection->table($this->tableName)
+            ->where('subscription_id', $message->subscriptionId)
+            ->where('message_id', $message->messageId)
+            ->where('status', PoisonMessageStatus::Poisoned->value)
+            ->orderByDesc('id')
+            ->value('id');
+
+        if ($openRowId !== null) {
+            $this->connection->table($this->tableName)
+                ->where('id', $openRowId)
+                ->update([
+                    'error_message' => $message->errorMessage,
+                    'stack_trace' => $message->stackTrace,
+                    'global_position' => $message->globalPosition,
+                    'retry_count' => $this->connection->raw('retry_count + ' . max(1, $message->retryCount)),
+                    'updated_at' => now()->format('Y-m-d H:i:s'),
+                ]);
+
+            return;
+        }
+
         $this->connection->table($this->tableName)->insert([
             'subscription_id' => $message->subscriptionId,
             'global_position' => $message->globalPosition,
