@@ -24,6 +24,11 @@ final readonly class DynamoDbTableManager
         return $this->prefix . 'saucy_processes';
     }
 
+    public function activityStreamTableName(): string
+    {
+        return $this->prefix . 'saucy_activity_stream_log';
+    }
+
     /**
      * Create all Saucy DynamoDB tables. Safe to call multiple times — skips existing tables.
      */
@@ -31,6 +36,7 @@ final readonly class DynamoDbTableManager
     {
         $this->createCheckpointTable();
         $this->createProcessesTable();
+        $this->createActivityStreamTable();
     }
 
     public function createCheckpointTable(): void
@@ -77,10 +83,55 @@ final readonly class DynamoDbTableManager
         $this->client->waitUntil('TableExists', ['TableName' => $tableName]);
     }
 
+    public function createActivityStreamTable(): void
+    {
+        $tableName = $this->activityStreamTableName();
+
+        if ($this->tableExists($tableName)) {
+            return;
+        }
+
+        $this->client->createTable([
+            'TableName' => $tableName,
+            'KeySchema' => [
+                ['AttributeName' => 'stream_id', 'KeyType' => 'HASH'],
+                ['AttributeName' => 'sk', 'KeyType' => 'RANGE'],
+            ],
+            'AttributeDefinitions' => [
+                ['AttributeName' => 'stream_id', 'AttributeType' => 'S'],
+                ['AttributeName' => 'sk', 'AttributeType' => 'S'],
+                ['AttributeName' => 'gsi_date', 'AttributeType' => 'S'],
+            ],
+            'GlobalSecondaryIndexes' => [
+                [
+                    'IndexName' => 'gsi_date_index',
+                    'KeySchema' => [
+                        ['AttributeName' => 'gsi_date', 'KeyType' => 'HASH'],
+                        ['AttributeName' => 'sk', 'KeyType' => 'RANGE'],
+                    ],
+                    'Projection' => ['ProjectionType' => 'ALL'],
+                ],
+            ],
+            'BillingMode' => 'PAY_PER_REQUEST',
+        ]);
+
+        $this->client->waitUntil('TableExists', ['TableName' => $tableName]);
+
+        // Let DynamoDB prune expired log rows automatically; the logger sets `ttl` on write.
+        $this->client->updateTimeToLive([
+            'TableName' => $tableName,
+            'TimeToLiveSpecification' => [
+                'Enabled' => true,
+                'AttributeName' => 'ttl',
+            ],
+        ]);
+    }
+
     public function deleteTables(): void
     {
         $this->deleteTableIfExists($this->checkpointTableName());
         $this->deleteTableIfExists($this->processesTableName());
+        $this->deleteTableIfExists($this->activityStreamTableName());
     }
 
     private function tableExists(string $tableName): bool
