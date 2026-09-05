@@ -65,9 +65,13 @@ abstract class LaneTestCase extends WithDatabaseTestCase
     /**
      * Inserts one event and returns its global position.
      */
-    protected function insertEvent(string $eventType, string $streamName = 'test###one'): int
-    {
-        $position = (int) (DB::table('event_store')->max('global_position') ?? 0) + 1;
+    protected function insertEvent(
+        string $eventType,
+        string $streamName = 'test###one',
+        ?int $position = null,
+        ?string $createdAt = null,
+    ): int {
+        $position ??= (int) (DB::table('event_store')->max('global_position') ?? 0) + 1;
 
         DB::table('event_store')->insert([
             'global_position' => $position,
@@ -79,7 +83,8 @@ abstract class LaneTestCase extends WithDatabaseTestCase
             'stream_position' => $position,
             'payload' => json_encode(['n' => $position]),
             'metadata' => json_encode([]),
-            'created_at' => '2026-01-01 00:00:00',
+            // Old by default, so the gap guard is inert unless a test asks for a young row.
+            'created_at' => $createdAt ?? '2026-01-01 00:00:00',
         ]);
 
         return $position;

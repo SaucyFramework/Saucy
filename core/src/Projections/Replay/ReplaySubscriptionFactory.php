@@ -27,6 +27,7 @@ final readonly class ReplaySubscriptionFactory
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: $original->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds,
                 sleepWhenNoNewMessagesBeforeRetryInMicroseconds: $original->streamOptions->sleepWhenNoNewMessagesBeforeRetryInMicroseconds,
                 queue: $original->streamOptions->queue,
+                gapGraceInSeconds: $original->streamOptions->gapGraceInSeconds,
             ),
             messageConsumer: $replayProjector,
             eventReader: $original->eventReader,

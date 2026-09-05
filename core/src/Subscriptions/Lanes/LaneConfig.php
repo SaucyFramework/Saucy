@@ -24,12 +24,15 @@ final readonly class LaneConfig
         public ?int $commitBatchSize = null,
         public int $retryBudgetInSeconds = 10,
         public int $quiesceWaitInSeconds = 20,
+        public int $gapGraceInSeconds = 0,
     ) {}
 
     /**
      * @param array<string, mixed> $config
+     * @param int $defaultGapGraceInSeconds the global `all_stream_projection.gap_grace_in_seconds`,
+     *        used when the lane does not set `gap_grace_seconds` of its own
      */
-    public static function fromArray(string $name, array $config): self
+    public static function fromArray(string $name, array $config, int $defaultGapGraceInSeconds = 0): self
     {
         return new self(
             name: $name,
@@ -42,6 +45,7 @@ final readonly class LaneConfig
             commitBatchSize: self::nullableInt($config, 'commit_batch_size'),
             retryBudgetInSeconds: self::int($config, 'retry_budget_seconds', 10),
             quiesceWaitInSeconds: self::int($config, 'quiesce_wait_seconds', 20),
+            gapGraceInSeconds: self::int($config, 'gap_grace_seconds', $defaultGapGraceInSeconds),
         );
     }
 

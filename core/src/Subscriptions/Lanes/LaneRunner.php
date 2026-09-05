@@ -111,7 +111,19 @@ final class LaneRunner
             'start_time' => $startTime,
         ]);
 
-        $this->syncWithCoordinator();
+        // Read the head BEFORE the page, exactly as AllStreamSubscription::poll() does. Reading
+        // it afterwards would let an event committed between the (empty) page and the read be
+        // skipped forever by the idle advance below.
+        $headBeforePage = $this->eventReader->maxEventId();
+
+        // Gap guard, computed ONCE per poll for every member in the lane: a global_position is
+        // reserved at INSERT but only visible at COMMIT, so consuming up to the head would skip
+        // a row whose transaction is still in flight below it. This is the pay-off of the lane
+        // shape - the legacy path pays for this query per subscription.
+        $ceiling = $this->resolveCeiling($headBeforePage);
+
+        // The membership evaluation gets the same ceiling, so it is computed before the sync.
+        $this->syncWithCoordinator($ceiling);
 
         if ($this->inLane === []) {
             $activity->flush(includeTrail: false);
@@ -121,16 +133,13 @@ final class LaneRunner
         $fromPosition = min(array_intersect_key($this->positions, $this->inLane));
         $eventTypes = $this->eventTypeUnion();
 
-        // Read the head BEFORE the page, exactly as AllStreamSubscription::poll() does. Reading
-        // it afterwards would let an event committed between the (empty) page and the read be
-        // skipped forever by the idle advance below.
-        $headBeforePage = $this->eventReader->maxEventId();
-
         $activity->trail('loading_events', 'loading events', [
             'lane' => $this->config->name,
             'fromPosition' => $fromPosition,
             'limit' => $this->config->pageSize,
             'members' => count($this->inLane),
+            'safe_ceiling' => $ceiling,
+            'max_position' => $headBeforePage,
         ]);
 
         $storedEvents = $this->eventReader->paginate(
@@ -138,6 +147,7 @@ final class LaneRunner
                 fromPosition: $fromPosition,
                 limit: $this->config->pageSize,
                 eventTypes: $eventTypes,
+                upToPosition: $ceiling,
             ),
         );
 
@@ -191,10 +201,11 @@ final class LaneRunner
         $this->closeBatches($batchOpened);
 
         if ($eventsRead === 0 && !$queueTimedOut) {
-            // Nothing to see: every in-lane member is up to date with the head as it stood when
-            // the page was read. A member pinned above it never moves backwards.
+            // Nothing to see: every in-lane member is up to date with the SAFE ceiling as it
+            // stood when the page was read - never with the raw head, which is how an in-flight
+            // row below it would be skipped. A member pinned above it never moves backwards.
             foreach (array_keys($this->inLane) as $memberId) {
-                $this->positions[$memberId] = max($this->positions[$memberId], $headBeforePage);
+                $this->positions[$memberId] = max($this->positions[$memberId], $ceiling);
             }
         }
 
@@ -444,7 +455,21 @@ final class LaneRunner
      * a finished catch-up job) triggers a full membership evaluation; a claim bump only re-syncs
      * the sync-claimed set.
      */
-    private function syncWithCoordinator(): void
+    private function resolveCeiling(int $head): int
+    {
+        if ($this->config->gapGraceInSeconds <= 0) {
+            return $head;
+        }
+
+        return min(
+            $head,
+            $this->eventReader->safeCeiling(
+                new \DateTimeImmutable("-{$this->config->gapGraceInSeconds} seconds"),
+            ),
+        );
+    }
+
+    private function syncWithCoordinator(int $ceiling): void
     {
         $lane = $this->config->name;
         $state = $this->coordinator->read($lane);
@@ -454,7 +479,7 @@ final class LaneRunner
         }
 
         if ($this->lastSeenVersion === null || $state->structuralPending) {
-            $this->evaluateMembership($state);
+            $this->evaluateMembership($state, $ceiling);
         } else {
             $this->resyncClaims($state);
         }
@@ -463,7 +488,7 @@ final class LaneRunner
         $this->coordinator->acknowledge($lane, $state->membershipVersion);
     }
 
-    private function evaluateMembership(LaneCoordinationState $state): void
+    private function evaluateMembership(LaneCoordinationState $state, int $laneHead): void
     {
         $lane = $this->config->name;
         $this->claimed = array_fill_keys($state->claimedMembers, true);
@@ -475,7 +500,11 @@ final class LaneRunner
         $membership = LaneMembership::evaluate(
             members: $this->members,
             claimed: $this->claimed,
-            laneHead: $this->eventReader->maxEventId(),
+            // The CEILING, not maxEventId(): while a hole pins the ceiling, members legitimately
+            // fall behind the raw head at the write rate, and measuring the window against the
+            // head would eject the whole lane to standalone catch-up jobs for a gap they are
+            // forbidden to close.
+            laneHead: $laneHead,
             catchUpThreshold: $this->config->catchUpThreshold,
             runningProcesses: $this->runningProcesses,
             poisonMessageStore: $this->poisonMessageStore,

@@ -37,4 +37,9 @@ final class HookedAllStreamReader implements AllStreamReader
     {
         return $this->inner->maxEventId();
     }
+
+    public function safeCeiling(\DateTimeInterface $committedBefore): int
+    {
+        return $this->inner->safeCeiling($committedBefore);
+    }
 }

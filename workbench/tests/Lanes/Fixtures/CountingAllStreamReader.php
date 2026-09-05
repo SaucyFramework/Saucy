@@ -12,6 +12,8 @@ final class CountingAllStreamReader implements AllStreamReader
 {
     public int $paginateCalls = 0;
 
+    public int $safeCeilingCalls = 0;
+
     /** @var array<int, AllStreamQuery> */
     public array $queries = [];
 
@@ -31,5 +33,12 @@ final class CountingAllStreamReader implements AllStreamReader
     public function maxEventId(): int
     {
         return $this->inner->maxEventId();
+    }
+
+    public function safeCeiling(\DateTimeInterface $committedBefore): int
+    {
+        $this->safeCeilingCalls++;
+
+        return $this->inner->safeCeiling($committedBefore);
     }
 }

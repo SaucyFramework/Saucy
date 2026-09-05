@@ -233,6 +233,8 @@ final class SaucyServiceProvider extends ServiceProvider
                 $laneAssignments,
                 $attributeLanes,
                 $application->make(AllStreamSubscriptionRegistry::class),
+                // 0, not the package default: see SubscriptionRegistryFactory.
+                (int) config('saucy.all_stream_projection.gap_grace_in_seconds', 0), // @phpstan-ignore-line
             );
         });
 

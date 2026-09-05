@@ -17,6 +17,25 @@ return [
         'keep_processing_without_new_messages_before_stop_in_seconds' => 5,
         'commit_batch_size' => 1,
         'page_size' => 50,
+
+        // Gap guard. A `global_position` is reserved at INSERT but only visible at COMMIT, so
+        // position 3 can be readable while position 2 is still in flight; without this a reader
+        // would checkpoint past position 2 and skip it forever. A reader will not consume a row
+        // until every position below it is either visible or older than this many seconds.
+        //
+        // TWO ASSUMPTIONS:
+        //  1. No event-store insert stays uncommitted for longer than this.
+        //  2. `created_at` is a faithful proxy for INSERT time. It is stamped from the APP clock
+        //     in persist(), so app clocks must agree to within this window, and nothing may
+        //     backdate `created_at` (Carbon::setTestNow, historical importers) while the store is
+        //     taking live writes - a backdated row above an in-flight hole makes the guard skip
+        //     that hole. Run backdated imports and seeders against a store that is not taking
+        //     live writes, or with this set to 0 on a quiet store.
+        //
+        // The cost is latency, and only while a hole actually exists: a hole either fills (the
+        // transaction commits) or ages out of the window (it was an abandoned auto-increment
+        // value, which every optimistic-concurrency conflict leaves behind). Set to 0 to disable.
+        'gap_grace_in_seconds' => 10,
     ],
 
     // Projection lanes. Lanes are ENABLED when this array is non-empty; with it empty every

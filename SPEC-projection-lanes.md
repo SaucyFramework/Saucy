@@ -480,3 +480,32 @@ behaviours wrong; the semantics below supersede the corresponding paragraphs.
 13. **`maxEventId()` is read before the page**, matching `AllStreamSubscription::poll()`. Reading
     it after an empty page let an event committed during the read be skipped forever by the idle
     advance.
+
+14. **All-stream gap guard (`AllStreamReader::safeCeiling()`).** A `global_position` is reserved at
+    INSERT and only visible at COMMIT, so a lower position can appear after a higher one; reading
+    up to `maxEventId()` skips such a row forever. Both readers now consume and idle-advance only
+    up to a safe ceiling: `AllStreamQuery` gained an inclusive `upToPosition`, `StreamOptions`
+    gained `gapGraceInSeconds` (0 = off, from `all_stream_projection.gap_grace_in_seconds`), and
+    `LaneConfig` gained `gap_grace_seconds` (null = fall back to the global value).
+
+    The lane computes the ceiling **once per page for every member**, which is the same
+    fan-out saving as the page read itself - the legacy path pays for it per subscription.
+    `LaneMembership`'s `laneHead` deliberately keeps using `maxEventId()`: it decides catch-up
+    window membership, not what may be consumed.
+
+    The guard distinguishes a young hole (possibly in flight) from an old one (an auto-increment
+    value burned by an optimistic-concurrency conflict, which is permanent and common) by age, so
+    a reader stalls at most `gap_grace_in_seconds` and only while a hole exists. It rests on the
+    documented assumption that no insert stays uncommitted longer than that window.
+
+    Follow-ups after review: the ceiling is bounded by `SAFE_CEILING_SCAN_CAP` (10 000 positions
+    above the last settled row) so a bulk import inside the grace window cannot make every poll
+    scan it; `LaneMembership::evaluate` receives that ceiling as `laneHead` rather than
+    `maxEventId()`, so a hole cannot eject a whole lane to catch-up jobs; and the config fallback
+    in code is 0 (opt-in on upgrade), with 10 only in the package's shipped `saucy.php`.
+
+    The guard has a SECOND assumption beyond "no insert stays uncommitted longer than the grace":
+    `created_at` is stamped from the app clock, so it assumes clocks agree within the window and
+    that nothing backdates `created_at` during live writes. A backdated row above an in-flight
+    hole makes the whole store look settled and the hole is skipped - see
+    `AllStreamReaderSafeCeilingTest::a_backdated_row_above_an_in_flight_hole_defeats_the_guard_by_design`.

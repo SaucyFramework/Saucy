@@ -406,6 +406,156 @@ final class LaneRunnerTest extends LaneTestCase
         $this->assertSame([1, 2], $consumer->handled, 'event 2 is picked up on the next poll');
     }
 
+    /** @test the gap guard: no member's checkpoint may pass a position still in flight */
+    public function the_lane_stops_every_member_below_an_in_flight_position(): void
+    {
+        $old = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        $young = (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+
+        $this->insertEvent('type.a', createdAt: $old);  // 1
+        $this->insertEvent('type.a', createdAt: $old);  // 2
+        $this->insertEvent('type.a', createdAt: $old);  // 3
+        // 4 is allocated but uncommitted; 5 committed first and is visible.
+        $this->insertEvent('type.b', position: 5, createdAt: $young);
+
+        $a = new RecordingConsumer();
+        $b = new RecordingConsumer();
+
+        $members = [
+            'member_a' => $this->member('member_a', $a, ['type.a']),
+            'member_b' => $this->member('member_b', $b, ['type.b']),
+        ];
+        $config = new LaneConfig(name: 'default', gapGraceInSeconds: 10);
+
+        $runner = $this->runner($members, $config);
+        $runner->poll(30);
+
+        $this->assertSame([1, 2, 3], $a->handled);
+        $this->assertSame([], $b->handled, 'the young row above the hole is not consumed yet');
+        // Neither the subscriber of the missing row's type nor the member that ignores it may
+        // move past the hole.
+        $this->assertSame(3, $this->checkpoints->positionOf('member_a'));
+        $this->assertSame(3, $this->checkpoints->positionOf('member_b'));
+
+        // The in-flight transaction commits.
+        $this->insertEvent('type.a', position: 4, createdAt: $young);
+
+        $runner->poll(30);
+
+        $this->assertSame([1, 2, 3, 4], $a->handled);
+        $this->assertSame([5], $b->handled);
+        $this->assertSame(5, $this->checkpoints->positionOf('member_a'));
+        $this->assertSame(5, $this->checkpoints->positionOf('member_b'));
+    }
+
+    /** @test the idle advance must use the ceiling, not the head */
+    public function an_idle_poll_advances_members_to_the_ceiling_rather_than_the_head(): void
+    {
+        $old = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        $young = (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+
+        $this->insertEvent('type.a', createdAt: $old);  // 1
+        $this->insertEvent('type.a', createdAt: $old);  // 2
+        $this->insertEvent('type.a', createdAt: $old);  // 3
+        // A type nobody in the lane subscribes to, so the next page comes back empty, above a
+        // hole at 4 that may still be in flight.
+        $this->insertEvent('type.z', position: 5, createdAt: $young);
+
+        $a = new RecordingConsumer();
+        $members = ['member_a' => $this->member('member_a', $a, ['type.a'])];
+        $config = new LaneConfig(name: 'default', gapGraceInSeconds: 10);
+
+        $runner = $this->runner($members, $config);
+        $runner->poll(30);
+        $this->assertSame(3, $this->checkpoints->positionOf('member_a'));
+
+        $this->assertTrue($runner->poll(30)->isIdle());
+        $this->assertSame(
+            3,
+            $this->checkpoints->positionOf('member_a'),
+            'the idle advance stops at the ceiling, not at maxEventId()',
+        );
+        $this->assertSame(5, $this->reader->maxEventId(), 'the head really is above the ceiling');
+    }
+
+    /** @test the catch-up window must be measured against the ceiling, not the raw head */
+    public function a_hole_that_pins_the_ceiling_does_not_eject_the_lane_to_catch_up_jobs(): void
+    {
+        $old = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        $young = (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+
+        // A settled prefix up to 150, a hole at 151, and a long tail of young rows above it.
+        foreach (range(1, 150) as $position) {
+            $this->insertEvent('type.a', position: $position, createdAt: $old);
+        }
+        foreach (range(152, 2000) as $position) {
+            $this->insertEvent('type.a', position: $position, createdAt: $young);
+        }
+
+        $a = new RecordingConsumer();
+        $b = new RecordingConsumer();
+        $members = [
+            'member_a' => $this->member('member_a', $a, ['type.a']),
+            'member_b' => $this->member('member_b', $b, ['type.a']),
+        ];
+
+        $this->setCheckpoint('member_a', 100);
+        $this->setCheckpoint('member_b', 100);
+
+        // The raw head is 2000, so measured against it both members are 1900 behind and would be
+        // ejected. Measured against the ceiling (150) they are only 50 behind and stay in-lane.
+        $config = new LaneConfig(name: 'default', pageSize: 500, catchUpThreshold: 1000, gapGraceInSeconds: 10);
+
+        $runner = $this->runner($members, $config);
+        $runner->poll(30);
+
+        $this->assertSame([], $this->catchUpCalls, 'nobody is handed to a standalone catch-up job');
+        $this->assertSame(2000, $this->reader->maxEventId(), 'the raw head really is far above');
+        $this->assertSame(150, $this->checkpoints->positionOf('member_a'), 'consumed up to the ceiling');
+        $this->assertSame(150, $this->checkpoints->positionOf('member_b'));
+    }
+
+    /** @test the ceiling is computed once per page for the whole lane, not once per member */
+    public function the_gap_guard_costs_one_query_per_page_regardless_of_member_count(): void
+    {
+        $old = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        foreach (range(1, 3) as $ignored) {
+            $this->insertEvent('type.a', createdAt: $old);
+        }
+
+        $members = [];
+        foreach (range(1, 5) as $n) {
+            $members['member_' . $n] = $this->member('member_' . $n, new RecordingConsumer(), ['type.a']);
+        }
+
+        $runner = $this->runner($members, new LaneConfig(name: 'default', gapGraceInSeconds: 10));
+
+        $runner->poll(30);
+        $this->assertSame(1, $this->reader->safeCeilingCalls, 'five members, one ceiling query');
+
+        $runner->poll(30);
+        $this->assertSame(2, $this->reader->safeCeilingCalls, 'one per page');
+    }
+
+    /** @test with no grace configured the lane keeps its previous behaviour */
+    public function a_zero_gap_grace_leaves_the_lane_reading_up_to_the_head(): void
+    {
+        $old = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        $young = (new \DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+
+        $this->insertEvent('type.a', createdAt: $old); // 1
+        $this->insertEvent('type.a', position: 3, createdAt: $young); // 3, with 2 in flight
+
+        $a = new RecordingConsumer();
+        $members = ['member_a' => $this->member('member_a', $a, ['type.a'])];
+
+        $runner = $this->runner($members, new LaneConfig(name: 'default'));
+        $runner->poll(30);
+
+        $this->assertSame(0, $this->reader->safeCeilingCalls, 'the guard is off');
+        $this->assertSame([1, 3], $a->handled);
+    }
+
     /** @test batch consumers are flushed once per page and never committed mid-page */
     public function batch_consumers_are_opened_once_and_flushed_before_their_checkpoint_is_written(): void
     {

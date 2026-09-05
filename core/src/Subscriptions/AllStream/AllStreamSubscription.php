@@ -90,10 +90,25 @@ final readonly class AllStreamSubscription
 
         $maxPosition = $this->eventReader->maxEventId();
 
+        // Gap guard: a global_position is reserved at INSERT but only visible at COMMIT, so a
+        // lower position can appear after a higher one. Consuming (and checkpointing) up to
+        // maxEventId() would skip such a row forever, so stop below the first hole that could
+        // still be an in-flight transaction. See AllStreamReader::safeCeiling().
+        $safeCeiling = $this->streamOptions->gapGraceInSeconds > 0
+            ? min(
+                $maxPosition,
+                $this->eventReader->safeCeiling(
+                    new \DateTimeImmutable("-{$this->streamOptions->gapGraceInSeconds} seconds"),
+                ),
+            )
+            : $maxPosition;
+
         $this->appendToActivity($log, 'loading_events', 'loading events', [
             'fromPosition' =>  $checkpoint->position,
             'limit' =>  $this->streamOptions->pageSize,
             'eventTypes' =>  $this->streamOptions->eventTypes,
+            'safe_ceiling' => $safeCeiling,
+            'max_position' => $maxPosition,
             'time' => time(),
             'run_time' => time() - $startTime,
         ]);
@@ -105,6 +120,7 @@ final readonly class AllStreamSubscription
                 fromPosition: $checkpoint->position,
                 limit: $processBatches ? $this->messageConsumer->getBatchSize() : $this->streamOptions->pageSize,
                 eventTypes: $this->streamOptions->eventTypes,
+                upToPosition: $safeCeiling,
             ),
         );
 
@@ -237,14 +253,18 @@ final readonly class AllStreamSubscription
             $this->checkpointStore->store($checkpoint->withPosition($lastProcessedEvent->globalPosition));
         }
 
-        if ($messageCount === 0 && !$queueTimedOut) {
+        // The idle advance goes to the SAFE ceiling, never to maxEventId(): jumping to the head
+        // is exactly how an in-flight row below it would be skipped. The guard keeps the
+        // checkpoint from ever moving backwards when the ceiling sits below it.
+        if ($messageCount === 0 && !$queueTimedOut && $safeCeiling > $checkpoint->position) {
             $this->appendToActivity($log, 'store_checkpoint', 'store checkpoint, 0 handled', [
-                'position' => $maxPosition,
+                'position' => $safeCeiling,
+                'max_position' => $maxPosition,
                 'messages_processed' => $timePerMessageType,
                 'time' => time(),
                 'run_time' => time() - $startTime,
             ]);
-            $this->checkpointStore->store($checkpoint->withPosition($maxPosition));
+            $this->checkpointStore->store($checkpoint->withPosition($safeCeiling));
         }
 
         $this->storeLog($log);

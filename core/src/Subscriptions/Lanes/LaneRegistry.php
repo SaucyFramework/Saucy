@@ -34,10 +34,15 @@ final class LaneRegistry
         private readonly array $laneAssignments,
         private readonly array $attributeLanes,
         private readonly AllStreamSubscriptionRegistry $allStreamSubscriptionRegistry,
+        int $defaultGapGraceInSeconds = 0,
     ) {
         // Any lane referenced by config implies a 'default' lane exists to catch the rest.
         if ($lanes !== [] && !isset($lanes[LaneConfig::DEFAULT_LANE])) {
-            $lanes[LaneConfig::DEFAULT_LANE] = LaneConfig::fromArray(LaneConfig::DEFAULT_LANE, []);
+            $lanes[LaneConfig::DEFAULT_LANE] = LaneConfig::fromArray(
+                LaneConfig::DEFAULT_LANE,
+                [],
+                $defaultGapGraceInSeconds,
+            );
         }
 
         $this->lanes = $lanes;
@@ -53,13 +58,24 @@ final class LaneRegistry
         array $laneAssignments,
         array $attributeLanes,
         AllStreamSubscriptionRegistry $allStreamSubscriptionRegistry,
+        int $defaultGapGraceInSeconds = 0,
     ): self {
         $lanes = [];
         foreach ($lanesConfig as $name => $settings) {
-            $lanes[(string) $name] = LaneConfig::fromArray((string) $name, is_array($settings) ? $settings : []);
+            $lanes[(string) $name] = LaneConfig::fromArray(
+                (string) $name,
+                is_array($settings) ? $settings : [],
+                $defaultGapGraceInSeconds,
+            );
         }
 
-        return new self($lanes, $laneAssignments, $attributeLanes, $allStreamSubscriptionRegistry);
+        return new self(
+            $lanes,
+            $laneAssignments,
+            $attributeLanes,
+            $allStreamSubscriptionRegistry,
+            $defaultGapGraceInSeconds,
+        );
     }
 
     public function enabled(): bool

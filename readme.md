@@ -120,6 +120,85 @@ Configuration options:
 )]
 ```
 
+### Gap guard
+
+A `global_position` is reserved when a row is INSERTed but only becomes visible when its
+transaction COMMITs, so position 3 can be readable while position 2 is still in flight. A reader
+that trusts `max(global_position)` consumes 3, checkpoints past 2, and **skips 2 forever**.
+
+Every all-stream reader (the per-subscription poller and the projection lanes alike) therefore
+stops at a *safe ceiling* instead: it will not consume a row until every position below it is
+either visible or older than the grace window.
+
+```php
+// config/saucy.php
+'all_stream_projection' => [
+    'gap_grace_in_seconds' => 10,   // 0 disables the guard (legacy behaviour)
+],
+```
+
+**Two assumptions this rests on:**
+
+1. **No event-store insert stays uncommitted for longer than `gap_grace_in_seconds`.** A
+   transaction that holds an allocated position longer than that can still be skipped.
+2. **`created_at` is a faithful proxy for INSERT time.** It is stamped from the *application*
+   clock in `persist()`, not by the database, so every writer's clock must agree to within the
+   grace window, and **nothing may backdate `created_at` while the store is taking live writes**.
+
+The second one has a concrete failure mode. Positions 1-3 are settled, position 4 is allocated by
+a live transaction that has not committed, and an importer commits position 5 stamped with a
+historical `created_at`. Now *no* row looks young, the whole store looks settled, the ceiling
+jumps to 5 - and when 4 finally commits it has already been passed. `Carbon::setTestNow`,
+historical importers and backfill seeders all produce exactly this shape.
+
+The mitigation is operational, not algorithmic:
+
+- run backdated imports and seeders against a store that is **not** taking live writes, or with
+  `gap_grace_in_seconds = 0` on a quiet store;
+- never backdate `created_at` on a live store.
+
+### Upgrading
+
+The guard is **opt-in for existing installations**. `mergeConfigFrom` does not merge nested keys,
+so a host that already publishes its own `all_stream_projection` block would otherwise have the
+guard switched on silently by a `composer update`. Both fallbacks in code are therefore `0`, and
+only the package's shipped `config/saucy.php` carries the `10`: a fresh install gets the guard,
+an existing one must add the key to its own block to enable it.
+
+Enabling it costs, per poll: 2-4 extra queries per subscription on the legacy path (once per page
+for a whole lane on the lane path), plus up to `gap_grace_in_seconds` of latency each time an
+auto-increment value is burnt. Weigh that against a silently skipped event.
+
+Holes are not rare, and most of them are permanent: every optimistic-concurrency conflict burns an
+auto-increment value InnoDB never reuses. The guard has to tell those apart from a genuine
+in-flight write, and it does so by age - a hole is only respected while the rows around it are
+young. So a hole resolves itself either way:
+
+- the transaction commits, the hole fills, and the reader moves on immediately;
+- or nothing arrives, the row above the hole ages past the window, and the hole is written off.
+
+A reader therefore stalls for at most `gap_grace_in_seconds`, and only while a hole actually
+exists. When the stream is contiguous - the overwhelmingly common case - the ceiling is the head
+and nothing changes.
+
+On the legacy path with `keep_processing_without_new_messages_before_stop_in_seconds = 0`, a poll
+that is pinned by a hole returns no messages and the job simply stops; the rows above the hole are
+consumed on the next persisted event or cron tick, not by that job spinning.
+
+A bulk import committed inside the grace window is bounded too: the reader looks at most
+`SAFE_CEILING_SCAN_CAP` (10 000) positions above the last settled row per call, and advances in
+those steps until it has caught up.
+
+The naive rule "stop just below the oldest young row" is **wrong**, and the implementation does
+not use it: if T1 allocates 5 and T2 allocates 6 and commits first, the lowest visible young
+position is 6, and stopping at 5 would treat the still-in-flight 5 as consumed. The reader
+instead checks that the region above the last settled row is *contiguous* before raising the
+ceiling to the head.
+
+`awaitProjection` needs no changes, but note the trade: awaiting an event that sits just above an
+in-flight hole waits up to the grace window. That is the correct behaviour - the alternative is
+reporting a projection as up to date while an earlier event is still missing from it.
+
 ### Aggregate Projectors
 
 ```php
@@ -277,6 +356,7 @@ Lanes are **opt-in**: with `saucy.lanes` empty, every code path behaves exactly 
         'commit_batch_size' => null,       // null = page_size; money lanes want this small
         'retry_budget_seconds' => 10,      // per-event retry budget before it is poison
         'quiesce_wait_seconds' => 20,      // how long a replay/swap waits for the lane to yield
+        'gap_grace_seconds' => null,       // null = use all_stream_projection.gap_grace_in_seconds
     ],
     'money' => [ /* same keys, all optional */ ],
 ],
@@ -377,6 +457,13 @@ strands the lane's lease until it expires, so the lane stalls for up to `process
   the quiesce took is undone before the error propagates - so just retry the action. Raising
   `quiesce_wait_seconds` beyond the calling request's own timeout is counter-productive: a
   SIGKILLed request is the one case that *would* leave the member paused.
+- **The gap guard is computed once per poll for the whole lane** (`gap_grace_seconds`, falling
+  back to `all_stream_projection.gap_grace_in_seconds`), where the legacy path pays for it once
+  per subscription per poll. See "Gap guard" above; a lane holds every member at the same safe
+  ceiling, so no member's checkpoint can pass a position that is still in flight. The catch-up
+  window is measured against that ceiling rather than the raw head - otherwise a hole that pins
+  the lane would look like every member falling behind, and the whole lane would be ejected to
+  standalone catch-up jobs that are equally forbidden to close the gap.
 - **A money lane wants a small `commit_batch_size`**, because the redelivery window after a crash
   is one commit batch.
 - **`lane__<name>` is a lease id, not a projector.** It appears in `running_processes` and in the

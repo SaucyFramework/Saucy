@@ -14,9 +14,14 @@ use Saucy\Core\Subscriptions\PoisonMessages\PoisonMessageStore;
  * The outcome of one full membership evaluation for a lane.
  *
  * Every read the evaluation needs is done once for the whole lane: the unresolved poison
- * messages are fetched in a single call and grouped by subscription id, and the lane head comes
- * from `AllStreamReader::maxEventId()` rather than from the member positions (a member pinned
- * above the store head with `startFrom` would otherwise eject every other member).
+ * messages are fetched in a single call, grouped by subscription id, and the lane head is passed
+ * in rather than derived from the member positions (a member pinned above the store head with
+ * `startFrom` would otherwise eject every other member).
+ *
+ * The caller passes the lane's SAFE CEILING as `$laneHead`, not `maxEventId()`: while a gap guard
+ * holds the ceiling below the head, members fall behind the head at the write rate through no
+ * fault of their own, and measuring the catch-up window against the head would hand the entire
+ * lane to standalone catch-up jobs for a gap those jobs are equally forbidden to close.
  */
 final readonly class LaneMembership
 {
@@ -41,6 +46,7 @@ final readonly class LaneMembership
     /**
      * @param array<string, AllStreamSubscription> $members
      * @param array<string, true> $claimed
+     * @param int $laneHead the lane's safe ceiling (see the class docblock), not the raw store head
      */
     public static function evaluate(
         array $members,
