@@ -57,7 +57,7 @@ final readonly class SubscriptionRegistryFactory
         );
     }
 
-    private static function resolveSubscriptionId(ProjectorConfig $projectorConfig): string
+    public static function resolveSubscriptionId(ProjectorConfig $projectorConfig): string
     {
         return $projectorConfig->name ?? (string) Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake();
     }

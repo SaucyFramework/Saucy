@@ -10,6 +10,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\StartProcessException;
+use Saucy\Core\Subscriptions\Lanes\LaneCoordinator;
+use Saucy\Core\Subscriptions\Lanes\LaneRegistry;
 use Symfony\Component\Uid\Ulid;
 
 final class AllStreamPollSubscriptionJob implements ShouldQueue
@@ -21,6 +23,10 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
 
     private int $timestampZeroMessagesHandled;
 
+    private ?LaneRegistry $laneRegistry = null;
+
+    private ?LaneCoordinator $laneCoordinator = null;
+
     public function __construct(
         public string $subscriptionId,
         public string $processId,
@@ -29,7 +35,14 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
     public function handle(
         AllStreamSubscriptionRegistry $subscriptionRegistry,
         RunningProcesses $runningProcesses,
+        ?LaneRegistry $laneRegistry = null,
+        ?LaneCoordinator $laneCoordinator = null,
     ): void {
+        // Both are no-ops while lanes are disabled: laneFor() returns null and the coordinator
+        // is never touched, so the legacy path is byte-for-byte unchanged.
+        $this->laneRegistry = $laneRegistry;
+        $this->laneCoordinator = $laneCoordinator;
+
         $subscription = $subscriptionRegistry->get($this->subscriptionId);
         try {
             $this->runSubscription($subscription, $runningProcesses);
@@ -44,6 +57,9 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         return "projection: {$this->subscriptionId}";
     }
 
+    /**
+     * @return array<int|string, string>
+     */
     public function tags(): array
     {
         return [
@@ -84,6 +100,7 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
             if (time() - $this->timestampZeroMessagesHandled >= $subscription->streamOptions->keepProcessingWithoutNewMessagesBeforeStopInSeconds) {
                 $runningProcesses->reportStatus($this->processId, 'stopping');
                 $runningProcesses->stop($this->processId);
+                $this->bumpLaneMembership();
                 return;
             }
 
@@ -93,6 +110,19 @@ final class AllStreamPollSubscriptionJob implements ShouldQueue
         }
 
         $this->runSubscription($subscription, $runningProcesses);
+    }
+
+    /**
+     * A standalone catch-up run has finished. Tell the lane so it re-evaluates and takes the
+     * member back once its checkpoint is inside the catch-up window again.
+     */
+    private function bumpLaneMembership(): void
+    {
+        $lane = $this->laneRegistry?->laneFor($this->subscriptionId);
+
+        if ($lane !== null) {
+            $this->laneCoordinator?->bumpMembership($lane->name);
+        }
     }
 
     private function startNewProcess(AllStreamSubscription $subscription, RunningProcesses $runningProcesses): void

@@ -13,6 +13,8 @@ use Saucy\Core\Subscriptions\AllStream\AllStreamSubscriptionRegistry;
 use Saucy\Core\Subscriptions\Checkpoints\Checkpoint;
 use Saucy\Core\Subscriptions\Checkpoints\CheckpointStore;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
+use Saucy\Core\Subscriptions\Lanes\LaneProcessManager;
+use Saucy\Core\Subscriptions\Lanes\LaneRegistry;
 use Symfony\Component\Uid\Ulid;
 
 final readonly class BackgroundReplayManager
@@ -23,7 +25,34 @@ final readonly class BackgroundReplayManager
         private RunningProcesses $runningProcesses,
         private CheckpointStore $checkpointStore,
         private BackgroundReplayStore $replayStore,
+        private ?LaneRegistry $laneRegistry = null,
+        private ?LaneProcessManager $laneProcessManager = null,
     ) {}
+
+    /**
+     * In lane mode the lane holds `lane__<name>`, not the member's id, so waiting on
+     * isActive(memberId) returns immediately and a table swap would race a page in flight.
+     * Quiescing takes the member out of the lane and waits for the lane to acknowledge that.
+     *
+     * @return string|null the process id to hand back to releaseFromLane()
+     */
+    private function quiesceInLane(string $subscriptionId, string $reason): ?string
+    {
+        if ($this->laneRegistry?->laneFor($subscriptionId) === null) {
+            return null;
+        }
+
+        return $this->laneProcessManager?->quiesceMember($subscriptionId, $reason);
+    }
+
+    private function releaseFromLane(string $subscriptionId, ?string $processId): void
+    {
+        if ($this->laneRegistry?->laneFor($subscriptionId) === null) {
+            return;
+        }
+
+        $this->laneProcessManager?->releaseMember($subscriptionId, $processId);
+    }
 
     public function startReplay(string $subscriptionId): void
     {
@@ -76,11 +105,15 @@ final readonly class BackgroundReplayManager
 
         $this->replayStore->markSwapping($subscriptionId);
 
+        $laneProcessId = null;
+
         try {
-            // 1. Pause main subscription
+            // 1. Pause main subscription, and take it out of its lane if it has one.
             if (!$this->runningProcesses->isPaused($subscriptionId)) {
                 $this->runningProcesses->pause($subscriptionId, 'hot swap in progress');
             }
+            // Inside the try: a lane that never acknowledges must not leave the member paused.
+            $laneProcessId = $this->quiesceInLane($subscriptionId, 'hot swap in progress');
 
             // 2. Pause the replay subscription (stop new polls)
             if (!$this->runningProcesses->isPaused($replaySubscriptionId)) {
@@ -111,6 +144,7 @@ final readonly class BackgroundReplayManager
             throw $e;
         } finally {
             // 7. Resume main subscription and trigger it to process any remaining gap
+            $this->releaseFromLane($subscriptionId, $laneProcessId);
             if ($this->runningProcesses->isPaused($subscriptionId)) {
                 $this->runningProcesses->resume($subscriptionId);
             }
@@ -187,11 +221,22 @@ final readonly class BackgroundReplayManager
         }
         $this->waitForProcessToDrain($replaySubscriptionId);
 
-        // Clean up
-        $this->runningProcesses->resume($replaySubscriptionId);
-        $original->messageConsumer->teardownReplayTables();
-        $this->checkpointStore->delete($replaySubscriptionId);
-        $this->replayStore->remove($subscriptionId);
+        $laneProcessId = null;
+
+        try {
+            // Take the main subscription out of its lane too: teardownReplayTables() must not run
+            // while the lane is mid-page for this member. Inside the try, so a lane that never
+            // acknowledges cannot leave the member paused forever.
+            $laneProcessId = $this->quiesceInLane($subscriptionId, 'cancelling replay');
+
+            // Clean up
+            $this->runningProcesses->resume($replaySubscriptionId);
+            $original->messageConsumer->teardownReplayTables();
+            $this->checkpointStore->delete($replaySubscriptionId);
+            $this->replayStore->remove($subscriptionId);
+        } finally {
+            $this->releaseFromLane($subscriptionId, $laneProcessId);
+        }
     }
 
     private function waitForProcessToDrain(string $subscriptionId): void

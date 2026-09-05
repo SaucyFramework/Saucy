@@ -23,8 +23,12 @@ final readonly class ProjectorConfig implements SerializablePayload
         public FailureMode $failureMode = FailureMode::Halt,
         public int $startFrom = 0,
         public ?string $name = null,
+        public ?string $lane = null,
     ) {}
 
+    /**
+     * @return array<string, mixed>
+     */
     public function toPayload(): array
     {
         return [
@@ -38,6 +42,7 @@ final readonly class ProjectorConfig implements SerializablePayload
             'failureMode' => $this->failureMode->value,
             'startFrom' => $this->startFrom,
             'name' => $this->name,
+            'lane' => $this->lane,
         ];
     }
 
@@ -54,6 +59,8 @@ final readonly class ProjectorConfig implements SerializablePayload
             failureMode: FailureMode::from($payload['failureMode'] ?? FailureMode::Halt->value),
             startFrom: $payload['startFrom'] ?? 0,
             name: $payload['name'] ?? null,
+            // Cached projector maps built before lanes existed have no 'lane' key.
+            lane: $payload['lane'] ?? null,
         );
     }
 }

@@ -14,5 +14,6 @@ class Projector
         public FailureMode $failureMode = FailureMode::Halt,
         public int $startFrom = 0,
         public ?string $name = null,
+        public ?string $lane = null,
     ) {}
 }
