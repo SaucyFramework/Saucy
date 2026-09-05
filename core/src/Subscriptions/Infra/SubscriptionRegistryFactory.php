@@ -57,7 +57,7 @@ final readonly class SubscriptionRegistryFactory
         );
     }
 
-    private static function resolveSubscriptionId(ProjectorConfig $projectorConfig): string
+    public static function resolveSubscriptionId(ProjectorConfig $projectorConfig): string
     {
         return $projectorConfig->name ?? (string) Str::of($projectorConfig->projectorClass)->afterLast('\\')->snake();
     }
@@ -93,6 +93,10 @@ final readonly class SubscriptionRegistryFactory
                 processTimeoutInSeconds: config('saucy.all_stream_projection.timeout'), // @phpstan-ignore-line
                 keepProcessingWithoutNewMessagesBeforeStopInSeconds: config('saucy.all_stream_projection.keep_processing_without_new_messages_before_stop_in_seconds'), // @phpstan-ignore-line
                 queue: config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
+                // Falls back to 0 (guard OFF), NOT to the package default: mergeConfigFrom does not
+                // merge nested keys, so a host with its own all_stream_projection block would
+                // otherwise silently turn the guard on at composer update time.
+                gapGraceInSeconds: (int) config('saucy.all_stream_projection.gap_grace_in_seconds', 0), // @phpstan-ignore-line
             ),
             messageConsumer: $application->make($projectorConfig->projectorClass),
             eventReader: $application->make(AllStreamReader::class),

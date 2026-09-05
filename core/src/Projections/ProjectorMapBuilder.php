@@ -39,6 +39,7 @@ final readonly class ProjectorMapBuilder
                     failureMode: $projectionAttribute->failureMode,
                     startFrom: $projectionAttribute->startFrom,
                     name: $projectionAttribute->name,
+                    lane: $projectionAttribute->lane,
                 ),
                 AggregateProjector::class => new ProjectorConfig(
                     projectorClass: $projectorClass,

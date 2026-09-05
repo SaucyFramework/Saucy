@@ -34,4 +34,9 @@ final readonly class HooksMessageStore implements AllStreamMessageRepository, Al
     {
         return $this->inner->maxEventId();
     }
+
+    public function safeCeiling(\DateTimeInterface $committedBefore): int
+    {
+        return $this->inner->safeCeiling($committedBefore);
+    }
 }

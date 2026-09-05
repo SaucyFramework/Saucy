@@ -18,5 +18,10 @@ final readonly class StreamOptions
         public int $keepProcessingWithoutNewMessagesBeforeStopInSeconds = 5,
         public int $sleepWhenNoNewMessagesBeforeRetryInMicroseconds = 500_000, // 0.5 sec default
         public ?string $queue = null,
+        /**
+         * Seconds a row is treated as possibly-still-in-flight. 0 disables the all-stream gap
+         * guard entirely (legacy behaviour). See AllStreamReader::safeCeiling().
+         */
+        public int $gapGraceInSeconds = 0,
     ) {}
 }

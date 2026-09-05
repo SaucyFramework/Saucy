@@ -31,8 +31,12 @@ use Saucy\Core\Subscriptions\Infra\DeferredTriggerSubscriptionProcessesAfterPers
 use Saucy\Core\Subscriptions\Infra\IlluminateRunningProcesses;
 use Saucy\Core\Subscriptions\Infra\PlaySynchronousProjectorsAfterPersist;
 use Saucy\Core\Subscriptions\Infra\RunningProcesses;
+use Saucy\Core\Projections\ProjectorType;
 use Saucy\Core\Subscriptions\Infra\SubscriptionRegistryFactory;
 use Saucy\Core\Subscriptions\Infra\TriggerSubscriptionProcessesAfterPersist;
+use Saucy\Core\Subscriptions\Lanes\IlluminateLaneCoordinator;
+use Saucy\Core\Subscriptions\Lanes\LaneCoordinator;
+use Saucy\Core\Subscriptions\Lanes\LaneRegistry;
 use Saucy\Core\Subscriptions\Metrics\ActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\IlluminateActivityStreamLogger;
 use Saucy\Core\Subscriptions\Metrics\IlluminateProjectionSnapshotStore;
@@ -202,6 +206,37 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->app->singleton(AllStreamSubscriptionRegistry::class, fn(Application $application) => new AllStreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildAllStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
         ));
+
+        $this->app->singleton(LaneCoordinator::class, function (Application $application) {
+            return new IlluminateLaneCoordinator(
+                $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        $this->app->singleton(LaneRegistry::class, function (Application $application) use ($projectorMap) {
+            // subscription id => lane named by the #[Projector(lane: ...)] attribute
+            $attributeLanes = [];
+            foreach ($projectorMap->getProjectorConfigs() as $projectorConfig) {
+                if ($projectorConfig->projectorType !== ProjectorType::AllStream) {
+                    continue;
+                }
+                $attributeLanes[SubscriptionRegistryFactory::resolveSubscriptionId($projectorConfig)] = $projectorConfig->lane;
+            }
+
+            /** @var array<string, mixed> $lanesConfig */
+            $lanesConfig = config('saucy.lanes', []);
+            /** @var array<string, string> $laneAssignments */
+            $laneAssignments = config('saucy.lane_assignments', []);
+
+            return LaneRegistry::fromConfig(
+                $lanesConfig,
+                $laneAssignments,
+                $attributeLanes,
+                $application->make(AllStreamSubscriptionRegistry::class),
+                // 0, not the package default: see SubscriptionRegistryFactory.
+                (int) config('saucy.all_stream_projection.gap_grace_in_seconds', 0), // @phpstan-ignore-line
+            );
+        });
 
         $this->app->singleton(StreamSubscriptionRegistry::class, fn(Application $application) => new StreamSubscriptionRegistry(
             ...SubscriptionRegistryFactory::buildStreamSubscriptionForProjectorMap($projectorMap, $application, $typeMap),
