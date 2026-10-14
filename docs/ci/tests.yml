@@ -1,3 +1,4 @@
+# Move to .github/workflows/tests.yml (the PR was pushed with a token that may not add workflows).
 name: tests
 
 on:

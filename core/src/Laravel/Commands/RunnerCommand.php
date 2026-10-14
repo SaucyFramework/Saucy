@@ -41,6 +41,12 @@ final class RunnerCommand extends Command
     ): int {
         $known = array_merge(array_keys($allStreams->streams), array_keys($streams->streams));
 
+        if (!$runners->readsOverrides() && ($this->argument('subscription') !== null || $this->option('default') !== null)) {
+            $this->error('Runner overrides are off (saucy.worker.runner_overrides / SAUCY_RUNNER_OVERRIDES=false), or the worker is not enabled: every subscription uses saucy.worker.default_runner.');
+
+            return self::FAILURE;
+        }
+
         $default = $this->option('default');
         if (is_string($default) && $default !== '') {
             $runners->set(SubscriptionRunners::DEFAULT_KEY, $default === 'clear' ? null : $this->runner($default));

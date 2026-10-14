@@ -113,6 +113,9 @@ final class WorkCommand extends Command
                 memoryLimitMb: (int) $this->option('memory'),
                 healthFile: is_string($this->option('health-file')) && $this->option('health-file') !== '' ? $this->option('health-file') : null,
                 retryBudgetSeconds: $this->float($config, 'retry_budget_seconds', 5),
+                // Longer than any process caches a runner switch, so a switch back to the queue never
+                // leaves an event to nobody.
+                runnerHandoverSeconds: max(10.0, 2 * $runners->cacheSeconds() + 2),
             ),
             logger: $logger,
             metrics: ($config['emf_metrics'] ?? false) ? new EmbeddedMetricFormatMetrics(STDOUT, (string) config('app.env')) : null, // @phpstan-ignore-line

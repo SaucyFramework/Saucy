@@ -12,6 +12,11 @@ namespace Saucy\Core\Subscriptions\Worker;
  * cached for `cacheSeconds`: this is consulted on every persist, and a switch only needs to land
  * within a second or two.
  *
+ * Reads happen at most once per `cacheSeconds` per process, not per event. Once a migration is
+ * complete, set `readOverrides: false` (saucy.worker.runner_overrides): only the configured default
+ * applies and the store is never read. With default `worker` the after-persist hook then dispatches
+ * nothing at all.
+ *
  * Never breaks a persist: when disabled (the worker is not in use) it never touches the store, and
  * when the store cannot be read it keeps the last overrides it knew, or the configured default. Both
  * err towards the queue also triggering, which the shared locks make harmless.
@@ -37,6 +42,7 @@ final class SubscriptionRunners
         private readonly float $cacheSeconds = 2.0,
         ?\Closure $clock = null,
         private readonly bool $enabled = true,
+        private readonly bool $readOverrides = true,
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -83,6 +89,9 @@ final class SubscriptionRunners
         if (!$this->enabled) {
             throw new \LogicException('The projection worker is not enabled (saucy.worker.enabled)');
         }
+        if (!$this->readOverrides) {
+            throw new \LogicException('Runner overrides are off (saucy.worker.runner_overrides): only saucy.worker.default_runner applies');
+        }
 
         $this->coordination->setRunnerOverride($subscriptionId, $runner?->value);
         $this->overrides = null;
@@ -93,7 +102,7 @@ final class SubscriptionRunners
      */
     public function overrides(): array
     {
-        if (!$this->enabled) {
+        if (!$this->enabled || !$this->readOverrides) {
             return [];
         }
 
@@ -121,5 +130,15 @@ final class SubscriptionRunners
     public function configuredDefault(): Runner
     {
         return $this->default;
+    }
+
+    public function readsOverrides(): bool
+    {
+        return $this->enabled && $this->readOverrides;
+    }
+
+    public function cacheSeconds(): float
+    {
+        return $this->cacheSeconds;
     }
 }

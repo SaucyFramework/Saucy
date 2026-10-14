@@ -42,8 +42,11 @@ return [
 
         // Which runner a subscription uses unless `saucy:runner` overrides it (`queue` or `worker`).
         'default_runner' => env('SAUCY_DEFAULT_RUNNER', 'queue'),
-        // How long runner overrides are cached per process (they are read on every persist).
-        'runner_cache_seconds' => 2,
+        // Read `saucy:runner` overrides from the coordination store. That is one read per process per
+        // runner_cache_seconds, not per event. Once every subscription has moved, set
+        // SAUCY_DEFAULT_RUNNER=worker and SAUCY_RUNNER_OVERRIDES=false: no reads, and no trigger jobs.
+        'runner_overrides' => (bool) env('SAUCY_RUNNER_OVERRIDES', true),
+        'runner_cache_seconds' => (float) env('SAUCY_RUNNER_CACHE_SECONDS', 5),
 
         // The commit the worker was built from. A worker only takes locks when it matches the SHA
         // a deploy wrote with `saucy:worker-gate pause`. Unset: the worker ignores the gate.

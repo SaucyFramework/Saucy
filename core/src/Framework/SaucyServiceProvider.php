@@ -144,8 +144,9 @@ final class SaucyServiceProvider extends ServiceProvider
             return new SubscriptionRunners(
                 coordination: $application->make(WorkerCoordination::class),
                 default: Runner::tryFrom($default) ?? Runner::Queue,
-                cacheSeconds: (float) config('saucy.worker.runner_cache_seconds', 2), // @phpstan-ignore-line
+                cacheSeconds: (float) config('saucy.worker.runner_cache_seconds', 5), // @phpstan-ignore-line
                 enabled: (bool) config('saucy.worker.enabled', false),
+                readOverrides: (bool) config('saucy.worker.runner_overrides', true),
             );
         });
 

@@ -76,10 +76,14 @@ php artisan saucy:runner --default=worker        # flip the default
 - **Queue side.** The process managers skip worker-run subscriptions unless the request needs them
   in sync (`awaitProjection`, `runInSync`), which keeps running inline. When nothing runs on the
   queue, no `TriggerSubscriptionsJob` is dispatched at all.
-- **Caching.** Overrides are cached for `runner_cache_seconds` per process. A failed read keeps the
-  last known values, so a store hiccup never breaks a persist.
-- **Hand-back grace.** After a switch to `queue`, the worker keeps running the subscription for 10 s,
-  so a process that still has the old value cached cannot leave an event to nobody.
+- **Caching.** Overrides are read at most once per `runner_cache_seconds` (5 s) per process, never
+  per event. A failed read keeps the last known values, so a store hiccup never breaks a persist.
+- **When the migration is done,** set `SAUCY_DEFAULT_RUNNER=worker` and `SAUCY_RUNNER_OVERRIDES=false`.
+  Overrides are then never read, and the after-persist hook dispatches no trigger job at all.
+  `saucy:runner` refuses to switch while overrides are off.
+- **Hand-back grace.** After a switch to `queue`, the worker keeps running the subscription for
+  `max(10 s, 2 × cache + 2 s)`, so a process that still has the old value cached cannot leave an event
+  to nobody.
 
 ### Deploys
 

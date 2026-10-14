@@ -55,6 +55,18 @@ final class SubscriptionRunnersTest extends TestCase
         $this->assertTrue($runners->queueRunsAny());
     }
 
+    public function test_with_overrides_off_only_the_default_applies_and_the_store_is_never_read(): void
+    {
+        $store = $this->createMock(\Saucy\Core\Subscriptions\Worker\WorkerCoordination::class);
+        $store->expects($this->never())->method('runnerOverrides');
+        $runners = new SubscriptionRunners($store, Runner::Worker, readOverrides: false);
+
+        $this->assertTrue($runners->runsOnWorker('orders'));
+        $this->assertFalse($runners->queueRunsAny());
+        $this->expectException(\LogicException::class);
+        $runners->set('orders', Runner::Queue);
+    }
+
     private function runners(?InMemoryWorkerCoordination $store = null): SubscriptionRunners
     {
         return new SubscriptionRunners($store ?? new InMemoryWorkerCoordination(), Runner::Queue, 2.0, fn() => $this->now);
