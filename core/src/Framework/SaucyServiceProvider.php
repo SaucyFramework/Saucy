@@ -15,7 +15,14 @@ use Saucy\Core\Laravel\Commands\BackfillAggregateInstancesCommand;
 use Saucy\Core\Laravel\Commands\BuildSaucyCache;
 use Saucy\Core\Laravel\Commands\PoisonMessagesCommand;
 use Saucy\Core\Laravel\Commands\SeedAggregateProjectorCheckpointsCommand;
+use Saucy\Core\Laravel\Commands\RunnerCommand;
 use Saucy\Core\Laravel\Commands\SnapshotPositionsCommand;
+use Saucy\Core\Laravel\Commands\WorkCommand;
+use Saucy\Core\Laravel\Commands\WorkerGateCommand;
+use Saucy\Core\Subscriptions\Worker\IlluminateWorkerCoordination;
+use Saucy\Core\Subscriptions\Worker\Runner;
+use Saucy\Core\Subscriptions\Worker\SubscriptionRunners;
+use Saucy\Core\Subscriptions\Worker\WorkerCoordination;
 use Saucy\Core\Projections\AwaitProjected;
 use Saucy\Core\Projections\Replay\BackgroundReplayManager;
 use Saucy\Core\Projections\Replay\BackgroundReplayStore;
@@ -77,7 +84,14 @@ final class SaucyServiceProvider extends ServiceProvider
             PoisonMessagesCommand::class,
             SeedAggregateProjectorCheckpointsCommand::class,
             SnapshotPositionsCommand::class,
+            WorkCommand::class,
+            WorkerGateCommand::class,
+            RunnerCommand::class,
         ]);
+
+        $this->publishes([
+            __DIR__ . '/../../../migrations/worker/create_saucy_worker_state_table.php.stub' => database_path('migrations/' . date('Y_m_d_His') . '_create_saucy_worker_state_table.php'),
+        ], 'saucy-worker-migrations');
     }
 
     public function register(): void
@@ -112,6 +126,27 @@ final class SaucyServiceProvider extends ServiceProvider
         $this->app->singleton(CheckpointStore::class, function (Application $application) {
             return new IlluminateCheckpointStore(
                 $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        // The projection worker (`saucy:work`). Bind WorkerCoordination to DynamoDbWorkerCoordination
+        // to keep it next to DynamoDB locks; the SQL store needs the `saucy-worker-migrations` migration.
+        $this->app->singleton(WorkerCoordination::class, function (Application $application) {
+            return new IlluminateWorkerCoordination(
+                $application->make(DatabaseManager::class)->connection(),
+            );
+        });
+
+        $this->app->singleton(SubscriptionRunners::class, function (Application $application) {
+            /** @var string $default */
+            $default = config('saucy.worker.default_runner', 'queue');
+
+            return new SubscriptionRunners(
+                coordination: $application->make(WorkerCoordination::class),
+                default: Runner::tryFrom($default) ?? Runner::Queue,
+                cacheSeconds: (float) config('saucy.worker.runner_cache_seconds', 5), // @phpstan-ignore-line
+                enabled: (bool) config('saucy.worker.enabled', false),
+                readOverrides: (bool) config('saucy.worker.runner_overrides', true),
             );
         });
 
@@ -181,6 +216,7 @@ final class SaucyServiceProvider extends ServiceProvider
                     $application->make(RunAllSubscriptionsInSync::class),
                     $syncTrigger,
                     config('saucy.all_stream_projection.queue'), // @phpstan-ignore-line
+                    $application->make(SubscriptionRunners::class),
                 )
                 : $syncTrigger;
 

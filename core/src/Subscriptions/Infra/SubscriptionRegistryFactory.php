@@ -103,6 +103,7 @@ final readonly class SubscriptionRegistryFactory
             failureMode: $projectorConfig->failureMode,
             poisonMessageStore: $application->make(PoisonMessageStore::class),
             poisonMessageRecorder: $application->make(PoisonMessageRecorder::class),
+            retryBudgetSeconds: (float) config('saucy.poison_messages.retry_budget_seconds', 60), // @phpstan-ignore-line
         );
     }
 

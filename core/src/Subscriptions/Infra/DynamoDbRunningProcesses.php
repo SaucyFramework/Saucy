@@ -7,7 +7,7 @@ namespace Saucy\Core\Subscriptions\Infra;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 
-final readonly class DynamoDbRunningProcesses implements RunningProcesses
+final readonly class DynamoDbRunningProcesses implements RunningProcesses, RunningProcessLeases
 {
     public function __construct(
         private DynamoDbClient $client,
@@ -103,9 +103,107 @@ final readonly class DynamoDbRunningProcesses implements RunningProcesses
     public function stop(string $processId): void
     {
         $subscriptionId = $this->resolveSubscriptionId($processId);
-        if ($subscriptionId !== null) {
-            $this->deleteProcessAndLookup($subscriptionId, $processId);
+        if ($subscriptionId === null) {
+            return;
         }
+
+        // Only this process's lock: if it expired and another process took the subscription over,
+        // a late stop() from this one must not delete the new holder's lock.
+        try {
+            $this->client->deleteItem([
+                'TableName' => $this->tableName,
+                'Key' => ['pk' => ['S' => "PROCESS#{$subscriptionId}"]],
+                'ConditionExpression' => 'process_id = :process_id',
+                'ExpressionAttributeValues' => [':process_id' => ['S' => $processId]],
+            ]);
+        } catch (DynamoDbException $e) {
+            if ($e->getAwsErrorCode() !== 'ConditionalCheckFailedException') {
+                throw $e;
+            }
+        }
+        $this->client->deleteItem([
+            'TableName' => $this->tableName,
+            'Key' => ['pk' => ['S' => "PROCESSID#{$processId}"]],
+        ]);
+    }
+
+    public function renew(string $subscriptionId, string $processId, \DateTimeInterface $expiresAt, array $attributes = []): bool
+    {
+        $set = ['expires_at = :expires_at'];
+        $names = ['#process_id' => 'process_id'];
+        $values = [
+            ':expires_at' => ['S' => $expiresAt->format('c')],
+            ':process_id' => ['S' => $processId],
+        ];
+
+        $index = 0;
+        foreach ($attributes as $name => $value) {
+            $set[] = "#a{$index} = :a{$index}";
+            $names["#a{$index}"] = $name;
+            $values[":a{$index}"] = ['S' => $value];
+            $index++;
+        }
+
+        try {
+            $this->client->updateItem([
+                'TableName' => $this->tableName,
+                'Key' => ['pk' => ['S' => "PROCESS#{$subscriptionId}"]],
+                'UpdateExpression' => 'SET ' . implode(', ', $set),
+                'ConditionExpression' => '#process_id = :process_id',
+                'ExpressionAttributeNames' => $names,
+                'ExpressionAttributeValues' => $values,
+            ]);
+        } catch (DynamoDbException $e) {
+            if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
+                return false;
+            }
+            throw $e;
+        }
+
+        return true;
+    }
+
+    public function takeOverExpired(string $subscriptionId, \DateTimeInterface $cutoff): bool
+    {
+        $result = $this->client->getItem([
+            'TableName' => $this->tableName,
+            'Key' => ['pk' => ['S' => "PROCESS#{$subscriptionId}"]],
+            'ConsistentRead' => true,
+        ]);
+        /** @var array<string, array<string, string>>|null $item */
+        $item = $result['Item'] ?? null;
+
+        $processId = $item['process_id']['S'] ?? null;
+        $expiresAt = $item['expires_at']['S'] ?? null;
+        if ($processId === null || $expiresAt === null || new \DateTimeImmutable($expiresAt) >= $cutoff) {
+            return false;
+        }
+
+        try {
+            // Only the exact lock judged expired: not one renewed or re-taken in the meantime.
+            $this->client->deleteItem([
+                'TableName' => $this->tableName,
+                'Key' => ['pk' => ['S' => "PROCESS#{$subscriptionId}"]],
+                'ConditionExpression' => 'process_id = :process_id AND expires_at = :expires_at',
+                'ExpressionAttributeValues' => [
+                    ':process_id' => ['S' => $processId],
+                    ':expires_at' => ['S' => $expiresAt],
+                ],
+            ]);
+        } catch (DynamoDbException $e) {
+            if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
+                return false;
+            }
+            throw $e;
+        }
+
+        // Without its lookup entry, a late stop() from the dead process resolves nothing.
+        $this->client->deleteItem([
+            'TableName' => $this->tableName,
+            'Key' => ['pk' => ['S' => "PROCESSID#{$processId}"]],
+        ]);
+
+        return true;
     }
 
     public function pause(string $subscriptionId, ?string $reason = null): void

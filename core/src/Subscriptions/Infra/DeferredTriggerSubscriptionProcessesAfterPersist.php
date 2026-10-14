@@ -7,6 +7,7 @@ use Saucy\Core\Events\Streams\StreamEvent;
 use Saucy\Core\Events\Streams\StreamName;
 use Saucy\Core\Serialisation\TypeMap;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
+use Saucy\Core\Subscriptions\Worker\SubscriptionRunners;
 use Saucy\MessageStorage\Hooks\AfterPersistHook;
 
 final readonly class DeferredTriggerSubscriptionProcessesAfterPersist implements AfterPersistHook
@@ -16,6 +17,7 @@ final readonly class DeferredTriggerSubscriptionProcessesAfterPersist implements
         private RunAllSubscriptionsInSync $runAllSubscriptionsInSync,
         private TriggerSubscriptionProcessesAfterPersist $syncFallback,
         private ?string $queue = null,
+        private ?SubscriptionRunners $runners = null,
     ) {}
 
     public function trigger(StreamName $streamName, StreamEvent ...$streamEvents): void
@@ -24,6 +26,11 @@ final readonly class DeferredTriggerSubscriptionProcessesAfterPersist implements
         // inline execution (e.g. awaitProjection or testing mode).
         if ($this->runAllSubscriptionsInSync->hasAnySyncRequirements()) {
             $this->syncFallback->trigger($streamName, ...$streamEvents);
+            return;
+        }
+
+        // Every subscription runs on `saucy:work`: the trigger job would find nothing to start.
+        if ($this->runners !== null && !$this->runners->queueRunsAny()) {
             return;
         }
 

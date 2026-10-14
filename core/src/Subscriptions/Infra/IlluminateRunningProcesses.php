@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PDOException;
 
-final readonly class IlluminateRunningProcesses implements RunningProcesses
+final readonly class IlluminateRunningProcesses implements RunningProcesses, RunningProcessLeases
 {
     public function __construct(
         private ConnectionInterface $connection,
@@ -149,5 +149,22 @@ final readonly class IlluminateRunningProcesses implements RunningProcesses
         return $this->connection->table($this->pausedTableName)
             ->where('subscription_id', $subscriptionId)
             ->exists();
+    }
+
+    public function renew(string $subscriptionId, string $processId, \DateTimeInterface $expiresAt, array $attributes = []): bool
+    {
+        // The table has no column for extra attributes; they are dropped.
+        return $this->connection->table($this->tableName)
+            ->where('subscription_id', $subscriptionId)
+            ->where('process_id', $processId)
+            ->update(['expires_at' => $expiresAt->format('Y-m-d H:i:s')]) > 0;
+    }
+
+    public function takeOverExpired(string $subscriptionId, \DateTimeInterface $cutoff): bool
+    {
+        return $this->connection->table($this->tableName)
+            ->where('subscription_id', $subscriptionId)
+            ->where('expires_at', '<', $cutoff->format('Y-m-d H:i:s'))
+            ->delete() > 0;
     }
 }

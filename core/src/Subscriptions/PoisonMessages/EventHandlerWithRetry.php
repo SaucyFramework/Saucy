@@ -9,13 +9,17 @@ final class EventHandlerWithRetry
 {
     private const int INITIAL_DELAY_MS = 100;
     private const int MULTIPLIER = 2;
-    private const int MAX_TOTAL_SECONDS = 60;
+    public const int MAX_TOTAL_SECONDS = 60;
 
     /**
      * Attempts to handle the event with exponential backoff.
      * Returns null on success, or the final exception if all retries are exhausted.
+     *
+     * @param float $maxTotalSeconds how long to keep retrying in-line. A queue job can afford the
+     *     default minute; the long-running worker handles every subscription in one process, so it
+     *     passes a few seconds and backs the subscription off instead.
      */
-    public static function handle(MessageConsumer $consumer, MessageConsumeContext $context): ?RetryExhaustedResult
+    public static function handle(MessageConsumer $consumer, MessageConsumeContext $context, float $maxTotalSeconds = self::MAX_TOTAL_SECONDS): ?RetryExhaustedResult
     {
         $startTime = microtime(true);
         $delayMs = self::INITIAL_DELAY_MS;
@@ -31,7 +35,7 @@ final class EventHandlerWithRetry
                 $retryCount++;
 
                 $elapsedSeconds = microtime(true) - $startTime;
-                if (($elapsedSeconds + ($delayMs / 1000)) >= self::MAX_TOTAL_SECONDS) {
+                if (($elapsedSeconds + ($delayMs / 1000)) >= $maxTotalSeconds) {
                     break;
                 }
 

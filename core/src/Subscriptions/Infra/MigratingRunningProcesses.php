@@ -9,7 +9,7 @@ namespace Saucy\Core\Subscriptions\Infra;
  * All writes go to DynamoDB. Reads check DynamoDB first, fall back to SQL.
  * Pause/resume state is managed in DynamoDB only once migrated.
  */
-final readonly class MigratingRunningProcesses implements RunningProcesses
+final readonly class MigratingRunningProcesses implements RunningProcesses, RunningProcessLeases
 {
     public function __construct(
         private RunningProcesses $dynamoDb,
@@ -97,5 +97,20 @@ final readonly class MigratingRunningProcesses implements RunningProcesses
         }
 
         return $this->sql->isPaused($subscriptionId);
+    }
+
+    public function renew(string $subscriptionId, string $processId, \DateTimeInterface $expiresAt, array $attributes = []): bool
+    {
+        // start() only writes to DynamoDB, so that is where a lease lives.
+        return $this->dynamoDb instanceof RunningProcessLeases
+            && $this->dynamoDb->renew($subscriptionId, $processId, $expiresAt, $attributes);
+    }
+
+    public function takeOverExpired(string $subscriptionId, \DateTimeInterface $cutoff): bool
+    {
+        $removed = $this->dynamoDb instanceof RunningProcessLeases
+            && $this->dynamoDb->takeOverExpired($subscriptionId, $cutoff);
+
+        return ($this->sql instanceof RunningProcessLeases && $this->sql->takeOverExpired($subscriptionId, $cutoff)) || $removed;
     }
 }
