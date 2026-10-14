@@ -69,6 +69,12 @@ final class WorkCommand extends Command
             $connection->disableQueryLog();
         }
 
+        // Projectors read their own writes. With a read/write split on the default connection
+        // (DB_READ_*), Laravel only sticks to the primary after the first write of a request, and a
+        // long-running process never starts a new request: before that first write, a projector would
+        // read a lagging replica. The head watcher reads the replica through its own connection.
+        $db->connection()->useWriteConnectionWhenReading();
+
         $logger = Log::channel();
         /** @var string|null $headConnection */
         $headConnection = $config['head_connection'] ?? null;
