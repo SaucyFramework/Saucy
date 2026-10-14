@@ -1,0 +1,25 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    /**
+     * State shared by `saucy:work` processes when they coordinate through SQL
+     * (IlluminateWorkerCoordination): live members, the deploy gate and per-subscription runners.
+     */
+    public function up(): void
+    {
+        Schema::create('saucy_worker_state', function (Blueprint $table) {
+            $table->string('key')->primary();
+            $table->text('value');
+            $table->unsignedBigInteger('expires_at')->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('saucy_worker_state');
+    }
+};

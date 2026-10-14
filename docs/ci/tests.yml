@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    services:
+      # The projection worker's gap probe and lock tests need a real InnoDB server and DynamoDB.
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: saucy_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+      dynamodb:
+        image: amazon/dynamodb-local
+        ports: ['8000:8000']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, pdo_sqlite, pcntl
+          coverage: none
+      # orchestra/testbench ^9 pins Laravel 11, which Composer's advisory policy blocks; this is the
+      # dev toolchain only (bump testbench/phpunit/larastan together to drop it).
+      - run: composer update --no-interaction --prefer-dist
+        env:
+          COMPOSER_NO_SECURITY_BLOCKING: 1
+      - name: SQLite
+        run: vendor/bin/phpunit workbench/tests
+      - name: MySQL and DynamoDB (worker)
+        run: vendor/bin/phpunit workbench/tests/Worker
+        env:
+          SAUCY_TEST_MYSQL_HOST: 127.0.0.1
+          SAUCY_TEST_MYSQL_PASSWORD: root
+          SAUCY_TEST_DYNAMODB_ENDPOINT: http://127.0.0.1:8000

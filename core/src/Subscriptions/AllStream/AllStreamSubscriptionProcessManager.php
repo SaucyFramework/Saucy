@@ -13,6 +13,7 @@ use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\StartProcessException;
 use Saucy\Core\Subscriptions\RunAllSubscriptionsInSync;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
+use Saucy\Core\Subscriptions\Worker\SubscriptionRunners;
 use Symfony\Component\Uid\Ulid;
 
 final readonly class AllStreamSubscriptionProcessManager
@@ -24,6 +25,7 @@ final readonly class AllStreamSubscriptionProcessManager
         private RunningProcesses $runningProcesses,
         private RunAllSubscriptionsInSync $runSync,
         ?DateInterval $defaultProcessTimeout = null,
+        private ?SubscriptionRunners $runners = null,
     ) {
         $this->defaultProcessTimeout = $defaultProcessTimeout ?? new DateInterval('PT5M');
     }
@@ -103,6 +105,11 @@ final readonly class AllStreamSubscriptionProcessManager
 
     private function startStreamIfNotRunning(AllStreamSubscription $stream): void
     {
+        // Run by `saucy:work`: no queue job, unless this request needs it in sync (awaitProjection).
+        if ($this->runners?->runsOnWorker($stream->subscriptionId) && !$this->runSync->isRunSync($stream->messageConsumer)) {
+            return;
+        }
+
         if ($this->runningProcesses->isActive($stream->subscriptionId)) {
             return;
         }

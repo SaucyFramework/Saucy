@@ -15,7 +15,8 @@
         "orchestra/testbench": "^9",
         "phpstan/phpstan": "^1.10",
         "larastan/larastan": "^2.0",
-        "friendsofphp/php-cs-fixer": "^3.49"
+        "friendsofphp/php-cs-fixer": "^3.49",
+        "aws/aws-sdk-php": "^3.300"
     },
     "autoload": {
         "psr-4": {
@@ -53,5 +54,8 @@
             "@build",
             "@php vendor/bin/testbench serve"
         ]
+    },
+    "suggest": {
+        "aws/aws-sdk-php": "Required for the DynamoDB checkpoint, lock and worker-coordination stores"
     }
 }

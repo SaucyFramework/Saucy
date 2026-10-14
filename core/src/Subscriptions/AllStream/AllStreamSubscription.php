@@ -36,6 +36,7 @@ final readonly class AllStreamSubscription
         public FailureMode $failureMode = FailureMode::Halt,
         public ?PoisonMessageStore $poisonMessageStore = null,
         public ?PoisonMessageRecorder $poisonMessageRecorder = null,
+        public float $retryBudgetSeconds = EventHandlerWithRetry::MAX_TOTAL_SECONDS,
     ) {}
 
     public function isUpToDate(?int $upToPosition): bool
@@ -156,6 +157,7 @@ final readonly class AllStreamSubscription
             $retryResult = EventHandlerWithRetry::handle(
                 $this->messageConsumer,
                 $this->storedMessageToContext($storedEvent),
+                $this->retryBudgetSeconds,
             );
 
             if ($retryResult !== null) {

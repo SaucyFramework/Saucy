@@ -9,7 +9,6 @@ use Saucy\Core\Framework\SaucyServiceProvider;
 
 use Workbench\App\Providers\WorkbenchServiceProvider;
 
-use function Orchestra\Testbench\workbench_path;
 
 abstract class WithDatabaseTestCase extends TestCase
 {
@@ -37,7 +36,7 @@ abstract class WithDatabaseTestCase extends TestCase
 
     protected function defineDatabaseMigrations()
     {
-        $this->loadMigrationsFrom(workbench_path('/database/migrations'));
+        $this->loadMigrationsFrom(__DIR__ . '/workbench/database/migrations');
     }
 
 
