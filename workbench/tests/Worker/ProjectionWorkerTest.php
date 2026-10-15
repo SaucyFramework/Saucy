@@ -23,6 +23,7 @@ use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumeContext;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumer;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatHandlesBatches;
 use Saucy\Core\Subscriptions\Metrics\NoOpLogger;
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
 use Saucy\Core\Subscriptions\StreamOptions;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscription;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
@@ -49,7 +50,7 @@ final class ProjectionWorkerTest extends WorkerTestCase
     /** @var array<string, list<int>> subscription id => global positions it handled, in order */
     private array $handled = [];
 
-    /** @var array<string, true> subscriptions whose consumer throws */
+    /** @var array<string, true|float> subscriptions whose consumer throws (until a microtime, if a float) */
     private array $failing = [];
 
     protected function setUp(): void
@@ -326,6 +327,48 @@ final class ProjectionWorkerTest extends WorkerTestCase
         $this->assertFalse($this->processes->isActive('sells'));
     }
 
+    public function test_a_skip_message_subscription_keeps_the_queue_retry_budget(): void
+    {
+        // Fails for ~1 s, then recovers: longer than the worker's budget, shorter than the queue's.
+        $this->failing['flaky_skip'] = microtime(true) + 1.0;
+        // Still failing when its turn comes: shows the short budget applies to Halt.
+        $this->failing['flaky_halt'] = microtime(true) + 30.0;
+        $worker = $this->worker([
+            $this->subscription('flaky_skip', ['ticket_sold'], failureMode: FailureMode::SkipMessage, retryBudgetSeconds: 3.0),
+            $this->subscription('flaky_halt', ['ticket_sold'], failureMode: FailureMode::Halt, retryBudgetSeconds: 3.0),
+        ], retryBudgetSeconds: 0.3);
+        $worker->boot();
+
+        $position = $this->event(1, 'ticket_sold');
+        $started = microtime(true);
+        $worker->tick();
+        $elapsed = microtime(true) - $started;
+
+        // SkipMessage would have dropped the event for good after 0.3 s; with 3 s it got through.
+        $this->assertSame([$position], $this->handled['flaky_skip']);
+        // Halt gives up after 0.3 s (not the subscription's 3 s) and gets the event again on a later poll.
+        $this->assertSame([], $this->handled['flaky_halt'] ?? []);
+        // ~1 s for the SkipMessage recovery + ~0.3 s for Halt; with Halt on the 3 s budget this would be ≥ 4 s.
+        $this->assertLessThan(2.5, $elapsed);
+    }
+
+    public function test_a_worker_held_by_the_deploy_gate_reports_it_as_lag(): void
+    {
+        $stream = fopen('php://memory', 'w+');
+        $worker = $this->worker([$this->subscription('sells', ['ticket_sold'])], sha: 'old', metrics: new EmbeddedMetricFormatMetrics($stream, 'testing'));
+        $worker->boot();
+        $this->coordination->pauseForDeploy('new');
+
+        $this->now += 30;
+        $worker->tick();
+
+        rewind($stream);
+        $lines = array_map(fn(string $line) => json_decode($line, true), array_filter(explode("\n", (string) stream_get_contents($stream))));
+        $last = end($lines);
+        $this->assertGreaterThanOrEqual(29, $last['WorkerGateHeldSeconds']);
+        $this->assertGreaterThanOrEqual(29, $last['ProjectionLagSeconds']);
+    }
+
     public function test_shutdown_hands_back_locks_and_leaves(): void
     {
         $worker = $this->worker([$this->subscription('sells', ['ticket_sold'])]);
@@ -370,6 +413,7 @@ final class ProjectionWorkerTest extends WorkerTestCase
         int $bootLookback = 0,
         ?float $bootLookbackSeconds = null,
         ?SubscriptionRunners $runners = null,
+        ?float $retryBudgetSeconds = 5.0,
     ): ProjectionWorker {
         return new ProjectionWorker(
             allStreamRegistry: new AllStreamSubscriptionRegistry(...$subscriptions),
@@ -383,7 +427,7 @@ final class ProjectionWorkerTest extends WorkerTestCase
                 clock: fn() => $this->now,
                 bootLookbackSeconds: $bootLookbackSeconds,
             ),
-            options: new WorkerOptions(sha: $sha),
+            options: new WorkerOptions(sha: $sha, retryBudgetSeconds: $retryBudgetSeconds),
             logger: new NullLogger(),
             metrics: $metrics,
             clock: fn() => $this->now,
@@ -398,7 +442,7 @@ final class ProjectionWorkerTest extends WorkerTestCase
     /**
      * @param list<string> $eventTypes
      */
-    private function subscription(string $id, array $eventTypes, bool $batches = false): AllStreamSubscription
+    private function subscription(string $id, array $eventTypes, bool $batches = false, FailureMode $failureMode = FailureMode::Halt, float $retryBudgetSeconds = 60.0): AllStreamSubscription
     {
         return new AllStreamSubscription(
             subscriptionId: $id,
@@ -409,6 +453,8 @@ final class ProjectionWorkerTest extends WorkerTestCase
             checkpointStore: $this->checkpoints,
             streamNameTypeMap: $this->streamNameTypeMap(),
             activityStreamLogger: new NoOpLogger(),
+            failureMode: $failureMode,
+            retryBudgetSeconds: $retryBudgetSeconds,
         );
     }
 
@@ -432,7 +478,8 @@ final class ProjectionWorkerTest extends WorkerTestCase
     private function consumer(string $id): MessageConsumer
     {
         $record = function (MessageConsumeContext $context) use ($id) {
-            if (isset($this->failing[$id])) {
+            $failing = $this->failing[$id] ?? null;
+            if ($failing === true || (is_float($failing) && microtime(true) < $failing)) {
                 throw new \RuntimeException("{$id} is broken");
             }
             $this->handled[$id][] = $context->globalPosition;
