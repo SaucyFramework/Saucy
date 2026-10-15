@@ -144,6 +144,33 @@ final class HeadWatcherTest extends WorkerTestCase
         $this->assertSame($this->base, $watcher->safeHead());
     }
 
+    public function test_when_the_database_rejects_the_probe_it_falls_back_to_the_timeout(): void
+    {
+        // E.g. a proxy (Vitess) that doesn't support FOR SHARE NOWAIT: not the 3572 "lock held" answer.
+        $primary = $this->createMock(\Illuminate\Database\ConnectionInterface::class);
+        $pdoException = new \PDOException('syntax not supported');
+        $pdoException->errorInfo = ['42000', 1235, 'This version does not support FOR SHARE NOWAIT'];
+        $primary->expects($this->once())->method('select')
+            ->willThrowException(new \Illuminate\Database\QueryException('mysql', 'select …', [], $pdoException));
+        $watcher = new HeadWatcher(
+            connection: DB::connection(),
+            gapTimeoutSeconds: 5.0,
+            bootLookback: 0,
+            clock: fn() => $this->now,
+            primary: $primary,
+        );
+        $watcher->boot();
+        $this->event(1, 'a');
+        $this->event(3, 'b');
+
+        $this->assertSame($this->base + 1, $watcher->poll()->to);
+        $this->now += 1;
+        $this->assertNull($watcher->poll()); // probe fails once, then the probe is off for a minute
+        $this->now += 4.1;
+        $this->assertSame($this->base + 3, $watcher->poll()->to);
+        $this->assertSame(1, $watcher->timedOutGapCount());
+    }
+
     public function test_a_full_window_says_more_is_waiting(): void
     {
         $watcher = $this->watcher(windowSize: 2);

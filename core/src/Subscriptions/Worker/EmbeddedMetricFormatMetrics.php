@@ -14,6 +14,7 @@ final readonly class EmbeddedMetricFormatMetrics implements WorkerMetrics
 {
     private const UNITS = [
         'ProjectionLagSeconds' => 'Seconds',
+        'WorkerGateHeldSeconds' => 'Seconds',
         'PendingSubscriptions' => 'Count',
         'HeldLeases' => 'Count',
         'OwnedSubscriptions' => 'Count',

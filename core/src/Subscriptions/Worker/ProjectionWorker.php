@@ -12,6 +12,7 @@ use Saucy\Core\Subscriptions\Infra\RunningProcesses;
 use Saucy\Core\Subscriptions\Infra\RunningProcessLeases;
 use Saucy\Core\Subscriptions\Infra\StartProcessException;
 use Saucy\Core\Subscriptions\MessageConsumption\MessageConsumerThatHandlesBatches;
+use Saucy\Core\Subscriptions\PoisonMessages\FailureMode;
 use Saucy\Core\Subscriptions\Metrics\NoOpLogger;
 use Saucy\Core\Subscriptions\StreamSubscription\StreamSubscriptionRegistry;
 use Psr\Log\LoggerInterface;
@@ -56,6 +57,12 @@ final class ProjectionWorker
     private array $liveWorkers = [];
 
     private ?string $gateSha = null;
+
+    /** When the deploy gate was paused, while it is; null when it isn't paused. */
+    private ?float $gatePausedSince = null;
+
+    /** The head recorded by the deploy pause this worker started after (see boot()). */
+    private ?int $lagFrom = null;
 
     private bool $admitted = true;
 
@@ -172,6 +179,9 @@ final class ProjectionWorker
                 ? $gate->pausedAt
                 : null;
         $this->bootHead = $this->headWatcher->boot($rewindTo);
+        // Events recorded after the deploy paused the workers really waited: count them as lag, unlike
+        // the rest of the history the boot look-back re-reads.
+        $this->lagFrom = $rewindTo;
         $this->cap->position = $this->headWatcher->safeHead();
 
         foreach ($this->allStreamRegistry->streams as $subscriptionId => $subscription) {
@@ -325,6 +335,9 @@ final class ProjectionWorker
 
             // A worker built without a SHA (local dev) is not part of the deploy protocol.
             $admitted = $gate === null || $this->options->sha === null || $gate->admits($this->options->sha);
+            $this->gatePausedSince = $gate !== null && $gate->paused
+                ? (float) ($gate->pausedAtTime ?? ($this->gatePausedSince ?? $now))
+                : null;
 
             if ($admitted && $gate !== null && $gate->paused && $this->options->sha !== null) {
                 if ($this->coordination->liftPause($this->options->sha)) {
@@ -466,7 +479,7 @@ final class ProjectionWorker
     {
         // History re-read by the boot look-back is mostly handled already; counting it as lag would
         // raise the lag alarm and scale the service out on every deploy.
-        $since = $window->oldestEventAt !== null && $window->to > $this->bootHead
+        $since = $window->oldestEventAt !== null && ($window->to > $this->bootHead || ($this->lagFrom !== null && $window->to > $this->lagFrom))
             ? min($now, (float) $window->oldestEventAt->format('U.u'))
             : $now;
         $types = array_flip($window->eventTypes);
@@ -870,8 +883,16 @@ final class ProjectionWorker
             }
         }
 
+        // While a deploy holds this worker paused, nothing it would run moves: report that as lag too,
+        // instead of the 0 an idle worker would show.
+        $gateHeld = $this->gatePausedSince !== null ? max(0.0, $now - $this->gatePausedSince) : 0.0;
+        if (!$this->admitted) {
+            $lag = max($lag, $gateHeld);
+        }
+
         $this->metrics->emit($this->workerId, [
             'ProjectionLagSeconds' => round($lag, 3),
+            'WorkerGateHeldSeconds' => round($gateHeld, 3),
             'PendingSubscriptions' => $pending,
             'HeldLeases' => $held,
             'OwnedSubscriptions' => count($this->states),
@@ -896,7 +917,12 @@ final class ProjectionWorker
             failureMode: $subscription->failureMode,
             poisonMessageStore: $subscription->poisonMessageStore,
             poisonMessageRecorder: $subscription->poisonMessageRecorder,
-            retryBudgetSeconds: $this->options->retryBudgetSeconds ?? $subscription->retryBudgetSeconds,
+            // A SkipMessage subscription drops the event for good once the retries run out, so a short
+            // DB or API blip must not be enough: it keeps the queue's budget. Halt and PauseStream
+            // subscriptions get the event again later, so they can fail fast.
+            retryBudgetSeconds: $subscription->failureMode === FailureMode::SkipMessage
+                ? $subscription->retryBudgetSeconds
+                : ($this->options->retryBudgetSeconds ?? $subscription->retryBudgetSeconds),
         );
     }
 

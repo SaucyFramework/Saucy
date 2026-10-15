@@ -6,7 +6,8 @@ namespace Saucy\Core\Subscriptions\Worker;
 
 /**
  * Where the worker reports its numbers every `metricsIntervalSeconds`: `ProjectionLagSeconds` (the
- * one to autoscale and alarm on), `PendingSubscriptions`, `OwnedSubscriptions`, `HeldLeases`,
+ * one to autoscale and alarm on), `WorkerGateHeldSeconds` (how long a deploy has held the workers
+ * paused), `PendingSubscriptions`, `OwnedSubscriptions`, `HeldLeases`,
  * `EventsHandled`, `FailedPolls` and the gap counters `OpenGaps`, `OldestOpenGapSeconds`,
  * `SkippedGaps`, `GapTimeouts`, `GapProbes`, `LateGapFills`.
  */
